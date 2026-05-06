@@ -1,26 +1,114 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bip-bg:      #080e1a;
+  --color-bip-surface: #0d1730;
+  --color-bip-panel:   #060b17;
+  --color-bip-border:  #1a3a5c;
+  --color-bip-accent:  #38bdf8;
+  --color-bip-text:    #cde4f5;
+  --color-bip-muted:   #5a7fa0;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+body {
+  background-color: #080e1a;
+  color: #cde4f5;
+  font-family: var(--font-geist-sans), Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background-image:
+    linear-gradient(rgba(56, 189, 248, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+::-webkit-scrollbar { height: 6px; width: 6px; }
+::-webkit-scrollbar-track { background: #080e1a; }
+::-webkit-scrollbar-thumb { background: #1a3a5c; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #5a7fa0; }
+
+@keyframes gold-glow {
+  0%, 100% {
+    box-shadow: 0 0 8px 0px rgba(251, 191, 36, 0.35), 0 0 28px 0px rgba(251, 191, 36, 0.08);
+  }
+  50% {
+    box-shadow: 0 0 18px 5px rgba(251, 191, 36, 0.6), 0 0 52px 0px rgba(251, 191, 36, 0.14);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.rank-1-glow {
+  animation: gold-glow 2s ease-in-out infinite;
+}
+
+@keyframes new-leader-burst {
+  0%   { transform: scale(1);    box-shadow: 0 0 8px 0px rgba(251,191,36,.35), 0 0 28px 0px rgba(251,191,36,.08); }
+  18%  { transform: scale(1.55); box-shadow: 0 0 90px 35px rgba(251,191,36,1), 0 0 180px 70px rgba(251,191,36,.7), 0 0 280px 100px rgba(251,191,36,.3); }
+  42%  { transform: scale(1.22); box-shadow: 0 0 45px 15px rgba(251,191,36,.75), 0 0 100px 30px rgba(251,191,36,.35); }
+  100% { transform: scale(1);    box-shadow: 0 0 8px 0px rgba(251,191,36,.35), 0 0 28px 0px rgba(251,191,36,.08); }
+}
+
+.new-leader-burst {
+  animation:
+    new-leader-burst 2s cubic-bezier(0.25, 1.7, 0.4, 1) forwards,
+    gold-glow 2s ease-in-out infinite 2s;
+}
+
+@keyframes shockwave {
+  0%   { transform: scale(1);   opacity: 1; }
+  100% { transform: scale(1.2); opacity: 0; }
+}
+
+.shockwave-ring {
+  position: absolute;
+  inset: -1px;
+  border-radius: 9px;
+  border: 3px solid rgba(251, 191, 36, 1);
+  animation: shockwave 1.4s ease-out forwards;
+  pointer-events: none;
+  z-index: 10;
+}
+
+@keyframes badge-pop {
+  0%   { opacity: 0; transform: scale(0.5); }
+  10%  { opacity: 1; transform: scale(1.12); }
+  18%  { transform: scale(1); }
+  90%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.new-leader-badge {
+  animation: badge-pop 10s ease-out forwards;
+}
+
+@keyframes leader-backdrop {
+  0%   { opacity: 0; }
+  8%   { opacity: 1; }
+  72%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes leader-text {
+  0%   { opacity: 0; transform: scale(0.6); }
+  12%  { opacity: 1; transform: scale(1.04); }
+  22%  { transform: scale(1); }
+  72%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.leader-backdrop { animation: leader-backdrop 4s ease-out forwards; }
+.leader-text     { animation: leader-text 4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+@keyframes entry-fade {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.entry-animate {
+  animation: entry-fade 0.35s ease-out both;
+}
+
+.export-snapshot * {
+  animation-play-state: paused !important;
+  transition: none !important;
 }
