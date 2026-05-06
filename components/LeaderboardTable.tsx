@@ -54,7 +54,7 @@ export default function LeaderboardTable({
   }
 
   const colCount  = twoColumn ? (entries.length >= 15 ? 3 : 2) : 1;
-  const nameWidth = colCount === 3 ? 'w-24' : colCount === 2 ? 'w-32' : 'w-44';
+  const nameWidth = colCount === 3 ? 'w-32' : colCount === 2 ? 'w-40' : 'w-56';
 
   const renderRows = (subset: LeaderboardEntry[], startIndex: number) =>
     subset.map((entry, i) => {
