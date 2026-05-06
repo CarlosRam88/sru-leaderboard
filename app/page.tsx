@@ -349,7 +349,7 @@ export default function Page() {
       });
       if (changes.size > 0) {
         setRankChanges(changes);
-        setTimeout(() => setRankChanges(new Map()), 8000);
+        setTimeout(() => setRankChanges(new Map()), 10000);
       }
 
       // Detect rank-1 handover
