@@ -64,6 +64,8 @@ function IconCollapse() {
   );
 }
 
+let activeCtx: AudioContext | null = null;
+
 export default function Page() {
   const [loading, setLoading]                 = useState(false);
   const [refreshing, setRefreshing]           = useState(false);
@@ -90,109 +92,74 @@ export default function Page() {
   const exportRef          = useRef<HTMLDivElement>(null);
   csvUrlRef.current = csvUrl;
 
-  // ── New-leader sound: low brass glissando with cathedral reverb ───────────
+  // ── New-leader sound: subtle rise + ping (~550 ms) ────────────────────────
 
   function playNewLeaderSound() {
     try {
+      // Stop any previous instance so sounds never overlap
+      if (activeCtx) { activeCtx.close(); activeCtx = null; }
+
       const ctx = new AudioContext();
+      activeCtx = ctx;
       const now = ctx.currentTime;
-      const dur = 3.4;
-      const end = now + dur;
 
-      // ── Cathedral reverb (4.2 s, gentle power-law decay) ──────────────────
-      const revLen = Math.floor(ctx.sampleRate * 4.2);
-      const revBuf = ctx.createBuffer(2, revLen, ctx.sampleRate);
-      for (let c = 0; c < 2; c++) {
-        const ch = revBuf.getChannelData(c);
-        for (let i = 0; i < revLen; i++)
-          ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / revLen, 1.15);
-      }
-      const reverb  = ctx.createConvolver(); reverb.buffer = revBuf;
-      const revSend = ctx.createGain(); revSend.gain.value = 0.62;
-      revSend.connect(reverb); reverb.connect(ctx.destination);
+      // Master gain — keeps overall level comfortable
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.42, now);
+      master.connect(ctx.destination);
 
-      // ── Breathy attack noise (fades in then dissolves into tone) ──────────
-      const bLen  = Math.floor(ctx.sampleRate * 0.75);
-      const bBuf  = ctx.createBuffer(1, bLen, ctx.sampleRate);
-      const bData = bBuf.getChannelData(0);
-      for (let i = 0; i < bLen; i++) bData[i] = Math.random() * 2 - 1;
-      const bSrc = ctx.createBufferSource(); bSrc.buffer = bBuf;
-      const bFlt = ctx.createBiquadFilter();
-      bFlt.type = 'bandpass'; bFlt.frequency.value = 680; bFlt.Q.value = 1.4;
-      const bEnv = ctx.createGain();
-      bEnv.gain.setValueAtTime(0, now);
-      bEnv.gain.linearRampToValueAtTime(0.22, now + 0.14);   // breath surge
-      bEnv.gain.linearRampToValueAtTime(0.04, now + 0.55);   // dissolves
-      bEnv.gain.linearRampToValueAtTime(0,    now + 0.75);
-      bSrc.connect(bFlt); bFlt.connect(bEnv);
-      bEnv.connect(ctx.destination); bEnv.connect(revSend);
-      bSrc.start(now);
+      // ── Phase 1: Rise (0 → 260 ms) ────────────────────────────────────────
+      // Smooth sine glide 420 Hz → 700 Hz
+      const rise = ctx.createOscillator(); rise.type = 'sine';
+      rise.frequency.setValueAtTime(420, now);
+      rise.frequency.exponentialRampToValueAtTime(700, now + 0.26);
+      const riseEnv = ctx.createGain();
+      riseEnv.gain.setValueAtTime(0,    now);
+      riseEnv.gain.linearRampToValueAtTime(0.7,  now + 0.012); // soft attack
+      riseEnv.gain.setValueAtTime(0.7,           now + 0.20);
+      riseEnv.gain.linearRampToValueAtTime(0,    now + 0.30);  // fade into ping
+      rise.connect(riseEnv); riseEnv.connect(master);
+      rise.start(now); rise.stop(now + 0.31);
 
-      // ── Vibrato LFO (delayed — natural players don't vibrate during attack) ─
-      const lfo     = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 4.7;
-      const lfoGain = ctx.createGain();
-      lfoGain.gain.setValueAtTime(0,   now);
-      lfoGain.gain.linearRampToValueAtTime(0, now + 0.75);  // silent through attack
-      lfoGain.gain.linearRampToValueAtTime(5, now + 1.5);   // 5-cent depth
-      lfo.connect(lfoGain);
-      lfo.start(now); lfo.stop(end + 0.1);
+      // Subtle detuned layer for richness (+7 cents, 35% volume)
+      const rise2 = ctx.createOscillator(); rise2.type = 'sine';
+      rise2.detune.value = 7;
+      rise2.frequency.setValueAtTime(420, now);
+      rise2.frequency.exponentialRampToValueAtTime(700, now + 0.26);
+      const rise2Env = ctx.createGain();
+      rise2Env.gain.setValueAtTime(0,    now);
+      rise2Env.gain.linearRampToValueAtTime(0.25, now + 0.012);
+      rise2Env.gain.setValueAtTime(0.25,          now + 0.20);
+      rise2Env.gain.linearRampToValueAtTime(0,    now + 0.30);
+      rise2.connect(rise2Env); rise2Env.connect(master);
+      rise2.start(now); rise2.stop(now + 0.31);
 
-      // ── Continuous glide: F2 (87 Hz) → Eb3 (155 Hz) ──────────────────────
-      const freqLo   = 87;
-      const freqHi   = 155;
-      const glideAt  = now + 0.08;
-      const glideEnd = now + 2.35;
+      // ── Phase 2: Ping (240 ms → 560 ms) ───────────────────────────────────
+      // Starts before rise fully ends so the two phases feel like one gesture
+      const pt = now + 0.24;
+      const ping = ctx.createOscillator(); ping.type = 'triangle';
+      ping.frequency.setValueAtTime(820, pt); // slightly above end of rise
+      const pingEnv = ctx.createGain();
+      pingEnv.gain.setValueAtTime(0,     pt);
+      pingEnv.gain.linearRampToValueAtTime(0.55, pt + 0.014); // crisp but soft attack
+      pingEnv.gain.exponentialRampToValueAtTime(0.001, pt + 0.32); // smooth decay
+      ping.connect(pingEnv); pingEnv.connect(master);
+      ping.start(pt); ping.stop(pt + 0.33);
 
-      // ── Brass body: 4 detuned sawtoths → formant boost → lowpass ──────────
-      const brassEnv = ctx.createGain();
-      brassEnv.gain.setValueAtTime(0,    now);
-      brassEnv.gain.linearRampToValueAtTime(0.70, now + 0.30);  // 300 ms attack
-      brassEnv.gain.setValueAtTime(0.70, now + 2.7);
-      brassEnv.gain.linearRampToValueAtTime(0,    end);
+      // Subtle octave harmonic on the ping for shimmer (decays faster)
+      const ping2 = ctx.createOscillator(); ping2.type = 'sine';
+      ping2.frequency.setValueAtTime(1640, pt);
+      const ping2Env = ctx.createGain();
+      ping2Env.gain.setValueAtTime(0,     pt);
+      ping2Env.gain.linearRampToValueAtTime(0.12, pt + 0.014);
+      ping2Env.gain.exponentialRampToValueAtTime(0.001, pt + 0.18);
+      ping2.connect(ping2Env); ping2Env.connect(master);
+      ping2.start(pt); ping2.stop(pt + 0.19);
 
-      const formant = ctx.createBiquadFilter();  // 350 Hz peak — Wagner tuba resonance
-      formant.type = 'peaking'; formant.frequency.value = 350;
-      formant.gain.value = 5; formant.Q.value = 1.1;
-
-      const brassLp = ctx.createBiquadFilter();  // roll off harshness above ~1 kHz
-      brassLp.type = 'lowpass'; brassLp.frequency.value = 1050; brassLp.Q.value = 0.75;
-
-      brassEnv.connect(formant); formant.connect(brassLp);
-      brassLp.connect(ctx.destination); brassLp.connect(revSend);
-
-      [-22, -7, 7, 22].forEach(cents => {
-        const osc = ctx.createOscillator(); osc.type = 'sawtooth';
-        osc.detune.value = cents;
-        lfoGain.connect(osc.detune);   // vibrato modulates each oscillator's detune
-        osc.frequency.setValueAtTime(freqLo, glideAt);
-        osc.frequency.exponentialRampToValueAtTime(freqHi, glideEnd);
-        osc.connect(brassEnv);
-        osc.start(now); osc.stop(end + 0.1);
-      });
-
-      // ── Weight layer: 2 heavily lowpassed sawtoths for sub mass ───────────
-      const wtEnv = ctx.createGain();
-      wtEnv.gain.setValueAtTime(0,    now);
-      wtEnv.gain.linearRampToValueAtTime(0.55, now + 0.42);
-      wtEnv.gain.setValueAtTime(0.55, now + 2.7);
-      wtEnv.gain.linearRampToValueAtTime(0,    end);
-
-      const wtLp = ctx.createBiquadFilter();
-      wtLp.type = 'lowpass'; wtLp.frequency.value = 310;
-      wtEnv.connect(wtLp);
-      wtLp.connect(ctx.destination); wtLp.connect(revSend);
-
-      [-5, 5].forEach(cents => {
-        const osc = ctx.createOscillator(); osc.type = 'sawtooth';
-        osc.detune.value = cents;
-        osc.frequency.setValueAtTime(freqLo, glideAt);
-        osc.frequency.exponentialRampToValueAtTime(freqHi, glideEnd);
-        osc.connect(wtEnv);
-        osc.start(now); osc.stop(end + 0.1);
-      });
-
-      // Keep context alive until the reverb tail fully decays
-      setTimeout(() => ctx.close(), (dur + 4.5) * 1000);
+      setTimeout(() => {
+        ctx.close();
+        if (activeCtx === ctx) activeCtx = null;
+      }, 700);
     } catch { /* AudioContext may be blocked before a user gesture */ }
   }
 
