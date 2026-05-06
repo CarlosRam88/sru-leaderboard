@@ -156,10 +156,28 @@ export default function Page() {
       ping2.connect(ping2Env); ping2Env.connect(master);
       ping2.start(pt); ping2.stop(pt + 0.19);
 
+      // ── Phase 3: Sparkle (520 ms → 660 ms) ────────────────────────────────
+      // Three staggered high-frequency tones — crystal shimmer finish
+      const sparkles = [
+        { freq: 2200, t: now + 0.52, vol: 0.10 },
+        { freq: 3500, t: now + 0.53, vol: 0.08 },
+        { freq: 5000, t: now + 0.54, vol: 0.06 },
+      ];
+      sparkles.forEach(({ freq, t: st, vol }) => {
+        const osc = ctx.createOscillator(); osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, st);
+        const env = ctx.createGain();
+        env.gain.setValueAtTime(0,   st);
+        env.gain.linearRampToValueAtTime(vol,   st + 0.006); // near-instant attack
+        env.gain.exponentialRampToValueAtTime(0.001, st + 0.13); // fast crystal decay
+        osc.connect(env); env.connect(master);
+        osc.start(st); osc.stop(st + 0.14);
+      });
+
       setTimeout(() => {
         ctx.close();
         if (activeCtx === ctx) activeCtx = null;
-      }, 700);
+      }, 850);
     } catch { /* AudioContext may be blocked before a user gesture */ }
   }
 
