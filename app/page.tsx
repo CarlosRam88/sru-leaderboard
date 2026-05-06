@@ -92,92 +92,61 @@ export default function Page() {
   const exportRef          = useRef<HTMLDivElement>(null);
   csvUrlRef.current = csvUrl;
 
-  // ── New-leader sound: subtle rise + ping (~550 ms) ────────────────────────
+  // ── New-leader sound: mini "tadaa" victory cue (~550 ms) ─────────────────
 
   function playNewLeaderSound() {
     try {
-      // Stop any previous instance so sounds never overlap
       if (activeCtx) { activeCtx.close(); activeCtx = null; }
 
       const ctx = new AudioContext();
       activeCtx = ctx;
       const now = ctx.currentTime;
 
-      // Master gain — keeps overall level comfortable
       const master = ctx.createGain();
-      master.gain.setValueAtTime(0.42, now);
+      master.gain.setValueAtTime(0.45, now);
       master.connect(ctx.destination);
 
-      // ── Phase 1: Rise (0 → 260 ms) ────────────────────────────────────────
-      // Smooth sine glide 420 Hz → 700 Hz
-      const rise = ctx.createOscillator(); rise.type = 'sine';
-      rise.frequency.setValueAtTime(420, now);
-      rise.frequency.exponentialRampToValueAtTime(700, now + 0.26);
-      const riseEnv = ctx.createGain();
-      riseEnv.gain.setValueAtTime(0,    now);
-      riseEnv.gain.linearRampToValueAtTime(0.7,  now + 0.012); // soft attack
-      riseEnv.gain.setValueAtTime(0.7,           now + 0.20);
-      riseEnv.gain.linearRampToValueAtTime(0,    now + 0.30);  // fade into ping
-      rise.connect(riseEnv); riseEnv.connect(master);
-      rise.start(now); rise.stop(now + 0.31);
-
-      // Subtle detuned layer for richness (+7 cents, 35% volume)
-      const rise2 = ctx.createOscillator(); rise2.type = 'sine';
-      rise2.detune.value = 7;
-      rise2.frequency.setValueAtTime(420, now);
-      rise2.frequency.exponentialRampToValueAtTime(700, now + 0.26);
-      const rise2Env = ctx.createGain();
-      rise2Env.gain.setValueAtTime(0,    now);
-      rise2Env.gain.linearRampToValueAtTime(0.25, now + 0.012);
-      rise2Env.gain.setValueAtTime(0.25,          now + 0.20);
-      rise2Env.gain.linearRampToValueAtTime(0,    now + 0.30);
-      rise2.connect(rise2Env); rise2Env.connect(master);
-      rise2.start(now); rise2.stop(now + 0.31);
-
-      // ── Phase 2: Ping (240 ms → 560 ms) ───────────────────────────────────
-      // Starts before rise fully ends so the two phases feel like one gesture
-      const pt = now + 0.24;
-      const ping = ctx.createOscillator(); ping.type = 'triangle';
-      ping.frequency.setValueAtTime(820, pt); // slightly above end of rise
-      const pingEnv = ctx.createGain();
-      pingEnv.gain.setValueAtTime(0,     pt);
-      pingEnv.gain.linearRampToValueAtTime(0.55, pt + 0.014); // crisp but soft attack
-      pingEnv.gain.exponentialRampToValueAtTime(0.001, pt + 0.32); // smooth decay
-      ping.connect(pingEnv); pingEnv.connect(master);
-      ping.start(pt); ping.stop(pt + 0.33);
-
-      // Subtle octave harmonic on the ping for shimmer (decays faster)
-      const ping2 = ctx.createOscillator(); ping2.type = 'sine';
-      ping2.frequency.setValueAtTime(1640, pt);
-      const ping2Env = ctx.createGain();
-      ping2Env.gain.setValueAtTime(0,     pt);
-      ping2Env.gain.linearRampToValueAtTime(0.12, pt + 0.014);
-      ping2Env.gain.exponentialRampToValueAtTime(0.001, pt + 0.18);
-      ping2.connect(ping2Env); ping2Env.connect(master);
-      ping2.start(pt); ping2.stop(pt + 0.19);
-
-      // ── Phase 3: Sparkle (520 ms → 660 ms) ────────────────────────────────
-      // Three staggered high-frequency tones — crystal shimmer finish
-      const sparkles = [
-        { freq: 2200, t: now + 0.52, vol: 0.10 },
-        { freq: 3500, t: now + 0.53, vol: 0.08 },
-        { freq: 5000, t: now + 0.54, vol: 0.06 },
+      // A major arpeggio — A4 → C#5 → E5 (tight rhythm, final note 3× longer)
+      const notes = [
+        { freq: 440, t: now + 0.00, dur: 0.09, peak: 0.50 },
+        { freq: 554, t: now + 0.11, dur: 0.09, peak: 0.60 },
+        { freq: 659, t: now + 0.22, dur: 0.28, peak: 0.72 },
       ];
-      sparkles.forEach(({ freq, t: st, vol }) => {
-        const osc = ctx.createOscillator(); osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, st);
+
+      notes.forEach(({ freq, t, dur, peak }, i) => {
+        const isLast = i === notes.length - 1;
+
+        // Main triangle oscillator
+        const osc = ctx.createOscillator(); osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, t);
         const env = ctx.createGain();
-        env.gain.setValueAtTime(0,   st);
-        env.gain.linearRampToValueAtTime(vol,   st + 0.006); // near-instant attack
-        env.gain.exponentialRampToValueAtTime(0.001, st + 0.13); // fast crystal decay
+        env.gain.setValueAtTime(0, t);
+        env.gain.linearRampToValueAtTime(peak, t + 0.008);       // fast smooth attack
+        if (isLast) {
+          // Final note: hold briefly then decay — gives the "tadaa" punch + tail
+          env.gain.setValueAtTime(peak,        t + 0.04);
+          env.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        } else {
+          env.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        }
         osc.connect(env); env.connect(master);
-        osc.start(st); osc.stop(st + 0.14);
+        osc.start(t); osc.stop(t + dur + 0.01);
+
+        // Octave-up sine layer for warmth (15% volume, decays faster)
+        const osc2 = ctx.createOscillator(); osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(freq * 2, t);
+        const env2 = ctx.createGain();
+        env2.gain.setValueAtTime(0, t);
+        env2.gain.linearRampToValueAtTime(peak * 0.15, t + 0.008);
+        env2.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.65);
+        osc2.connect(env2); env2.connect(master);
+        osc2.start(t); osc2.stop(t + dur * 0.65 + 0.01);
       });
 
       setTimeout(() => {
         ctx.close();
         if (activeCtx === ctx) activeCtx = null;
-      }, 850);
+      }, 750);
     } catch { /* AudioContext may be blocked before a user gesture */ }
   }
 
