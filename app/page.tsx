@@ -24,7 +24,7 @@ const DEFAULT_FILTERS: LeaderboardFilters = {
   topN: null,
 };
 
-const REFRESH_MS = 30_000;
+const REFRESH_MS = 15_000;
 
 function formatTime(d: Date) {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -92,61 +92,112 @@ export default function Page() {
   const exportRef          = useRef<HTMLDivElement>(null);
   csvUrlRef.current = csvUrl;
 
-  // ── New-leader sound: mini "tadaa" victory cue (~550 ms) ─────────────────
+  // ── New-leader sound: low brass glissando with cathedral reverb ─────────────
 
   function playNewLeaderSound() {
     try {
-      if (activeCtx) { activeCtx.close(); activeCtx = null; }
-
+      if (activeCtx) return; // already playing — don't double-trigger
       const ctx = new AudioContext();
       activeCtx = ctx;
       const now = ctx.currentTime;
+      const dur = 2.5;   // 30% shorter than original 3.4 s
+      const end = now + dur;
 
-      const master = ctx.createGain();
-      master.gain.setValueAtTime(0.45, now);
-      master.connect(ctx.destination);
+      // Cathedral reverb — 3.8 s IR
+      const revLen = Math.floor(ctx.sampleRate * 3.8);
+      const revBuf = ctx.createBuffer(2, revLen, ctx.sampleRate);
+      for (let c = 0; c < 2; c++) {
+        const ch = revBuf.getChannelData(c);
+        for (let i = 0; i < revLen; i++)
+          ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / revLen, 1.15);
+      }
+      const reverb  = ctx.createConvolver(); reverb.buffer = revBuf;
+      const revSend = ctx.createGain(); revSend.gain.value = 0.82;
+      revSend.connect(reverb); reverb.connect(ctx.destination);
 
-      // A major arpeggio — A4 → C#5 → E5 (tight rhythm, final note 3× longer)
-      const notes = [
-        { freq: 440, t: now + 0.00, dur: 0.09, peak: 0.50 },
-        { freq: 554, t: now + 0.11, dur: 0.09, peak: 0.60 },
-        { freq: 659, t: now + 0.22, dur: 0.28, peak: 0.72 },
-      ];
+      // Breathy attack noise — fades in then dissolves into the tone
+      const bLen  = Math.floor(ctx.sampleRate * 0.52);
+      const bBuf  = ctx.createBuffer(1, bLen, ctx.sampleRate);
+      const bData = bBuf.getChannelData(0);
+      for (let i = 0; i < bLen; i++) bData[i] = Math.random() * 2 - 1;
+      const bSrc = ctx.createBufferSource(); bSrc.buffer = bBuf;
+      const bFlt = ctx.createBiquadFilter();
+      bFlt.type = 'bandpass'; bFlt.frequency.value = 680; bFlt.Q.value = 1.4;
+      const bEnv = ctx.createGain();
+      bEnv.gain.setValueAtTime(0,    now);
+      bEnv.gain.linearRampToValueAtTime(0.22, now + 0.10);
+      bEnv.gain.linearRampToValueAtTime(0.04, now + 0.38);
+      bEnv.gain.linearRampToValueAtTime(0,    now + 0.52);
+      bSrc.connect(bFlt); bFlt.connect(bEnv);
+      bEnv.connect(ctx.destination); bEnv.connect(revSend);
+      bSrc.start(now);
 
-      notes.forEach(({ freq, t, dur, peak }, i) => {
-        const isLast = i === notes.length - 1;
+      // Vibrato LFO — delayed, real players don't vibrate during the attack
+      const lfo     = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 4.7;
+      const lfoGain = ctx.createGain();
+      lfoGain.gain.setValueAtTime(0, now);
+      lfoGain.gain.linearRampToValueAtTime(0, now + 0.52);
+      lfoGain.gain.linearRampToValueAtTime(5, now + 1.05);
+      lfo.connect(lfoGain);
+      lfo.start(now); lfo.stop(end + 0.1);
 
-        // Main triangle oscillator
-        const osc = ctx.createOscillator(); osc.type = 'triangle';
-        osc.frequency.setValueAtTime(freq, t);
-        const env = ctx.createGain();
-        env.gain.setValueAtTime(0, t);
-        env.gain.linearRampToValueAtTime(peak, t + 0.008);       // fast smooth attack
-        if (isLast) {
-          // Final note: hold briefly then decay — gives the "tadaa" punch + tail
-          env.gain.setValueAtTime(peak,        t + 0.04);
-          env.gain.exponentialRampToValueAtTime(0.001, t + dur);
-        } else {
-          env.gain.exponentialRampToValueAtTime(0.001, t + dur);
-        }
-        osc.connect(env); env.connect(master);
-        osc.start(t); osc.stop(t + dur + 0.01);
+      // Continuous glide: F2 (87 Hz) → Eb3 (155 Hz)
+      const freqLo   = 87;
+      const freqHi   = 155;
+      const glideAt  = now + 0.06;
+      const glideEnd = now + 1.65;
 
-        // Octave-up sine layer for warmth (15% volume, decays faster)
-        const osc2 = ctx.createOscillator(); osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(freq * 2, t);
-        const env2 = ctx.createGain();
-        env2.gain.setValueAtTime(0, t);
-        env2.gain.linearRampToValueAtTime(peak * 0.15, t + 0.008);
-        env2.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.65);
-        osc2.connect(env2); env2.connect(master);
-        osc2.start(t); osc2.stop(t + dur * 0.65 + 0.01);
+      // Brass body: 4 detuned sawtooths → formant boost → lowpass
+      const brassEnv = ctx.createGain();
+      brassEnv.gain.setValueAtTime(0,    now);
+      brassEnv.gain.linearRampToValueAtTime(0.70, now + 0.21);
+      brassEnv.gain.setValueAtTime(0.70, now + 1.9);
+      brassEnv.gain.linearRampToValueAtTime(0,    end);
+
+      const formant = ctx.createBiquadFilter();
+      formant.type = 'peaking'; formant.frequency.value = 350; formant.gain.value = 5; formant.Q.value = 1.1;
+
+      const brassLp = ctx.createBiquadFilter();
+      brassLp.type = 'lowpass'; brassLp.frequency.value = 1050; brassLp.Q.value = 0.75;
+
+      brassEnv.connect(formant); formant.connect(brassLp);
+      brassLp.connect(ctx.destination); brassLp.connect(revSend);
+
+      [-22, -7, 7, 22].forEach(cents => {
+        const osc = ctx.createOscillator(); osc.type = 'sawtooth';
+        osc.detune.value = cents;
+        lfoGain.connect(osc.detune);
+        osc.frequency.setValueAtTime(freqLo, glideAt);
+        osc.frequency.exponentialRampToValueAtTime(freqHi, glideEnd);
+        osc.connect(brassEnv);
+        osc.start(now); osc.stop(end + 0.1);
+      });
+
+      // Weight layer: 2 heavily lowpassed sawtooths for sub mass
+      const wtEnv = ctx.createGain();
+      wtEnv.gain.setValueAtTime(0,    now);
+      wtEnv.gain.linearRampToValueAtTime(0.55, now + 0.29);
+      wtEnv.gain.setValueAtTime(0.55, now + 1.9);
+      wtEnv.gain.linearRampToValueAtTime(0,    end);
+
+      const wtLp = ctx.createBiquadFilter();
+      wtLp.type = 'lowpass'; wtLp.frequency.value = 310;
+      wtEnv.connect(wtLp);
+      wtLp.connect(ctx.destination); wtLp.connect(revSend);
+
+      [-5, 5].forEach(cents => {
+        const osc = ctx.createOscillator(); osc.type = 'sawtooth';
+        osc.detune.value = cents;
+        osc.frequency.setValueAtTime(freqLo, glideAt);
+        osc.frequency.exponentialRampToValueAtTime(freqHi, glideEnd);
+        osc.connect(wtEnv);
+        osc.start(now); osc.stop(end + 0.1);
       });
 
       setTimeout(() => {
         ctx.close();
         if (activeCtx === ctx) activeCtx = null;
-      }, 750);
+      }, (dur + 3.5) * 1000);
     } catch { /* AudioContext may be blocked before a user gesture */ }
   }
 
@@ -318,7 +369,7 @@ export default function Page() {
       });
       if (changes.size > 0) {
         setRankChanges(changes);
-        setTimeout(() => setRankChanges(new Map()), 10000);
+        setTimeout(() => setRankChanges(new Map()), 30000);
       }
 
       // Detect rank-1 handover
