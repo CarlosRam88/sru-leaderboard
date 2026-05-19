@@ -139,6 +139,22 @@ body {
   transition: none !important;
 }
 
+@keyframes race-shimmer {
+  0%   { transform: translateX(-100%); opacity: 0; }
+  15%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { transform: translateX(350%); opacity: 0; }
+}
+
+.race-shimmer {
+  position: absolute;
+  inset: 0;
+  width: 30%;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.22) 50%, transparent 100%);
+  animation: race-shimmer 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
 .rank-1-glow {
   animation: entry-fade 0.35s ease-out both, gold-glow 3s ease-in-out infinite;
 }

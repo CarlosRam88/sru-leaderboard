@@ -117,14 +117,16 @@ export default function TeamRaceView({ sheet }: { sheet: ParsedSheet }) {
               {/* Bar track */}
               <div className="flex-1 h-14 rounded-2xl bg-bip-panel overflow-hidden self-center relative">
                 <div
-                  className="h-full rounded-2xl transition-all duration-1000 ease-out"
+                  className="h-full rounded-2xl transition-all duration-1000 ease-out relative overflow-hidden"
                   style={{
                     width: mounted ? `${pct}%` : '0%',
                     backgroundColor: team.color,
                     opacity: 0.6,
                     boxShadow: `0 0 32px 4px ${team.color}55`,
                   }}
-                />
+                >
+                  <div className="race-shimmer" style={{ animationDelay: `${-(team.rank * 0.9)}s` }} />
+                </div>
               </div>
 
               {/* Avg value + entry count */}
