@@ -79,9 +79,11 @@ export default function PodiumView({ entries, metric }: Props) {
                     <div className={`mt-4 text-5xl font-bold leading-tight truncate ${slot.nameColor}`}>
                       {entry.name}
                     </div>
-                    <div className="mt-2 text-xl text-bip-muted tracking-wide">
-                      {entry.position}
-                    </div>
+                    {entry.region && (
+                      <div className="mt-2 text-xl text-bip-muted tracking-wide">
+                        {entry.region}
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
