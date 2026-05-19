@@ -221,7 +221,7 @@ export default function MultiView({ sheet, allPositions, onNewLeader }: {
     });
   }, [panelResults, sheet.rows, onNewLeader]);
 
-  const gridCols = panels.length === 1 ? 'grid-cols-1' : 'grid-cols-2';
+  const gridCols = ['grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4'][panels.length - 1];
 
   return (
     <div className="flex flex-col gap-3" style={{ height: 'calc(100vh - 15rem)' }}>
