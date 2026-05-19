@@ -593,6 +593,7 @@ export default function Page() {
                     rankChanges={rankChanges}
                     twoColumn={isPresenting && presentView === 'table'}
                     newLeader={newLeader}
+                    regions={sheet?.regions ?? []}
                   />
                 )
               ) : (

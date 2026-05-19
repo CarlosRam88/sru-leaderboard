@@ -9,6 +9,7 @@ interface Props {
   rankChanges?: Map<string, 'up' | 'down'>;
   twoColumn?: boolean;
   newLeader?: string | null;
+  regions?: string[];
 }
 
 const rankMeta: Record<number, { number: string; bar: string; name: string }> = {
@@ -44,7 +45,7 @@ function Headers({ metric, nameWidth, compact = false }: { metric: string; nameW
 
 export default function LeaderboardTable({
   entries, metric, excludedCount, sortDirection,
-  rankChanges = new Map(), twoColumn = false, newLeader = null,
+  rankChanges = new Map(), twoColumn = false, newLeader = null, regions = [],
 }: Props) {
   if (entries.length === 0) {
     return (
@@ -79,7 +80,7 @@ export default function LeaderboardTable({
           }`}
           style={{
             animationDelay: `${(startIndex + i) * 55}ms`,
-            ...(teamColor(entry.region) && { borderLeftColor: teamColor(entry.region)!, borderLeftWidth: '3px' }),
+            ...(teamColor(entry.region, regions) && { borderLeftColor: teamColor(entry.region, regions)!, borderLeftWidth: '3px' }),
           }}
         >
           {/* Shockwave rings for new rank-1 */}

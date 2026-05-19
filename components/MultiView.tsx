@@ -150,7 +150,7 @@ function Panel({ config, entries, metricColumns, allPositions, canRemove, glowDe
               className={`relative flex items-center gap-2 rounded-md border px-3 py-1.5 ${s.border} ${s.bg} ${s.glow}`}
               style={{
                 animationDelay: glowDelay,
-                ...(teamColor(entry.region) && { borderLeftColor: teamColor(entry.region)!, borderLeftWidth: '3px' }),
+                ...(teamColor(entry.region, sheet.regions) && { borderLeftColor: teamColor(entry.region, sheet.regions)!, borderLeftWidth: '3px' }),
               }}
             >
               <span className={`w-5 flex-shrink-0 font-bold font-mono text-sm tabular-nums leading-none ${s.number}`}>
