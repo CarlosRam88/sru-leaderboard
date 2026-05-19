@@ -3,46 +3,21 @@
 import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import LeaderboardControls from '@/components/LeaderboardControls';
-import LeaderboardTable from '@/components/LeaderboardTable';
 import MultiView from '@/components/MultiView';
 import PodiumView from '@/components/PodiumView';
-import TeamRaceView from '@/components/TeamRaceView';
 import SheetUrlForm from '@/components/SheetUrlForm';
 import StatusMessage from '@/components/StatusMessage';
+import TableView from '@/components/TableView';
+import TeamRaceView from '@/components/TeamRaceView';
 import { parseSheetCsv } from '@/lib/csv';
 import { buildCsvUrl, parseSheetUrl } from '@/lib/googleSheets';
-import { computeLeaderboard, getUniquePositions } from '@/lib/leaderboard';
-import type { LeaderboardEntry, LeaderboardFilters, LeaderboardResult, ParsedSheet } from '@/types/leaderboard';
-
-const DEFAULT_FILTERS: LeaderboardFilters = {
-  metric: '',
-  sortDirection: 'highest',
-  dateFilter: 'all',
-  dateFrom: '',
-  dateTo: '',
-  positionFilter: '',
-  regionFilter: '',
-  mode: 'best',
-  topN: null,
-};
+import { getUniquePositions } from '@/lib/leaderboard';
+import type { ParsedSheet } from '@/types/leaderboard';
 
 const REFRESH_MS = 15_000;
 
 function formatTime(d: Date) {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-}
-
-function IconChevron({ open }: { open: boolean }) {
-  return (
-    <svg
-      width="14" height="14" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
-      className={`transition-transform duration-300 ${open ? 'rotate-180' : 'rotate-0'}`}
-    >
-      <polyline points="6 9 12 15 18 9" />
-    </svg>
-  );
 }
 
 function IconExpand() {
@@ -70,43 +45,36 @@ function IconCollapse() {
 let activeCtx: AudioContext | null = null;
 
 export default function Page() {
-  const [loading, setLoading]                 = useState(false);
-  const [refreshing, setRefreshing]           = useState(false);
-  const [error, setError]                     = useState<string | null>(null);
-  const [refreshError, setRefreshError]       = useState<string | null>(null);
-  const [sheet, setSheet]                     = useState<ParsedSheet | null>(null);
-  const [filters, setFilters]                 = useState<LeaderboardFilters>(DEFAULT_FILTERS);
-  const [csvUrl, setCsvUrl]                   = useState<string | null>(null);
-  const [lastRefreshed, setLastRefreshed]     = useState<Date | null>(null);
-  const [filtersOpen, setFiltersOpen]         = useState(true);
-  const [isPresenting, setIsPresenting]       = useState(false);
-  const [countdownPct, setCountdownPct]       = useState(100);
-  const [savedUrl, setSavedUrl]               = useState('');
+  const [loading, setLoading]           = useState(false);
+  const [refreshing, setRefreshing]     = useState(false);
+  const [error, setError]               = useState<string | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [sheet, setSheet]               = useState<ParsedSheet | null>(null);
+  const [csvUrl, setCsvUrl]             = useState<string | null>(null);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [savedUrl, setSavedUrl]         = useState('');
+  const [countdownPct, setCountdownPct] = useState(100);
 
-  const [rankChanges, setRankChanges] = useState<Map<string, 'up' | 'down'>>(new Map());
-  const [newLeader, setNewLeader]     = useState<string | null>(null);
-
-  const [exporting, setExporting]       = useState(false);
+  const [isPresenting, setIsPresenting] = useState(false);
   const [presentView, setPresentView]   = useState<'table' | 'podium' | 'multi' | 'race'>('table');
+  const [newLeader, setNewLeader]       = useState<string | null>(null);
+  const [exporting, setExporting]       = useState(false);
 
-  const csvUrlRef          = useRef<string | null>(null);
-  const resultRef          = useRef<LeaderboardResult | null>(null);
-  const preRefreshSnapshot = useRef<LeaderboardEntry[]>([]);
-  const exportRef          = useRef<HTMLDivElement>(null);
+  const csvUrlRef = useRef<string | null>(null);
+  const exportRef = useRef<HTMLDivElement>(null);
   csvUrlRef.current = csvUrl;
 
-  // ── New-leader sound: low brass glissando with cathedral reverb ─────────────
+  // ── New-leader sound ───────────────────────────────────────────────────────
 
   function playNewLeaderSound() {
     try {
-      if (activeCtx) return; // already playing — don't double-trigger
+      if (activeCtx) return;
       const ctx = new AudioContext();
       activeCtx = ctx;
       const now = ctx.currentTime;
-      const dur = 2.5;   // 30% shorter than original 3.4 s
+      const dur = 2.5;
       const end = now + dur;
 
-      // Cathedral reverb — 3.8 s IR
       const revLen = Math.floor(ctx.sampleRate * 3.8);
       const revBuf = ctx.createBuffer(2, revLen, ctx.sampleRate);
       for (let c = 0; c < 2; c++) {
@@ -118,7 +86,6 @@ export default function Page() {
       const revSend = ctx.createGain(); revSend.gain.value = 0.82;
       revSend.connect(reverb); reverb.connect(ctx.destination);
 
-      // Breathy attack noise — fades in then dissolves into the tone
       const bLen  = Math.floor(ctx.sampleRate * 0.52);
       const bBuf  = ctx.createBuffer(1, bLen, ctx.sampleRate);
       const bData = bBuf.getChannelData(0);
@@ -127,7 +94,7 @@ export default function Page() {
       const bFlt = ctx.createBiquadFilter();
       bFlt.type = 'bandpass'; bFlt.frequency.value = 680; bFlt.Q.value = 1.4;
       const bEnv = ctx.createGain();
-      bEnv.gain.setValueAtTime(0,    now);
+      bEnv.gain.setValueAtTime(0, now);
       bEnv.gain.linearRampToValueAtTime(0.22, now + 0.10);
       bEnv.gain.linearRampToValueAtTime(0.04, now + 0.38);
       bEnv.gain.linearRampToValueAtTime(0,    now + 0.52);
@@ -135,37 +102,28 @@ export default function Page() {
       bEnv.connect(ctx.destination); bEnv.connect(revSend);
       bSrc.start(now);
 
-      // Vibrato LFO — delayed, real players don't vibrate during the attack
       const lfo     = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 4.7;
       const lfoGain = ctx.createGain();
       lfoGain.gain.setValueAtTime(0, now);
-      lfoGain.gain.linearRampToValueAtTime(0, now + 0.52);
-      lfoGain.gain.linearRampToValueAtTime(5, now + 1.05);
+      lfoGain.gain.linearRampToValueAtTime(0,  now + 0.52);
+      lfoGain.gain.linearRampToValueAtTime(5,  now + 1.05);
       lfo.connect(lfoGain);
       lfo.start(now); lfo.stop(end + 0.1);
 
-      // Continuous glide: F2 (87 Hz) → Eb3 (155 Hz)
-      const freqLo   = 87;
-      const freqHi   = 155;
-      const glideAt  = now + 0.06;
-      const glideEnd = now + 1.65;
+      const freqLo = 87, freqHi = 155;
+      const glideAt = now + 0.06, glideEnd = now + 1.65;
 
-      // Brass body: 4 detuned sawtooths → formant boost → lowpass
       const brassEnv = ctx.createGain();
       brassEnv.gain.setValueAtTime(0,    now);
       brassEnv.gain.linearRampToValueAtTime(0.70, now + 0.21);
       brassEnv.gain.setValueAtTime(0.70, now + 1.9);
-      brassEnv.gain.linearRampToValueAtTime(0,    end);
-
+      brassEnv.gain.linearRampToValueAtTime(0, end);
       const formant = ctx.createBiquadFilter();
       formant.type = 'peaking'; formant.frequency.value = 350; formant.gain.value = 5; formant.Q.value = 1.1;
-
       const brassLp = ctx.createBiquadFilter();
       brassLp.type = 'lowpass'; brassLp.frequency.value = 1050; brassLp.Q.value = 0.75;
-
       brassEnv.connect(formant); formant.connect(brassLp);
       brassLp.connect(ctx.destination); brassLp.connect(revSend);
-
       [-22, -7, 7, 22].forEach(cents => {
         const osc = ctx.createOscillator(); osc.type = 'sawtooth';
         osc.detune.value = cents;
@@ -176,18 +134,15 @@ export default function Page() {
         osc.start(now); osc.stop(end + 0.1);
       });
 
-      // Weight layer: 2 heavily lowpassed sawtooths for sub mass
       const wtEnv = ctx.createGain();
       wtEnv.gain.setValueAtTime(0,    now);
       wtEnv.gain.linearRampToValueAtTime(0.55, now + 0.29);
       wtEnv.gain.setValueAtTime(0.55, now + 1.9);
-      wtEnv.gain.linearRampToValueAtTime(0,    end);
-
+      wtEnv.gain.linearRampToValueAtTime(0, end);
       const wtLp = ctx.createBiquadFilter();
       wtLp.type = 'lowpass'; wtLp.frequency.value = 310;
       wtEnv.connect(wtLp);
       wtLp.connect(ctx.destination); wtLp.connect(revSend);
-
       [-5, 5].forEach(cents => {
         const osc = ctx.createOscillator(); osc.type = 'sawtooth';
         osc.detune.value = cents;
@@ -197,10 +152,7 @@ export default function Page() {
         osc.start(now); osc.stop(end + 0.1);
       });
 
-      setTimeout(() => {
-        ctx.close();
-        if (activeCtx === ctx) activeCtx = null;
-      }, (dur + 3.5) * 1000);
+      setTimeout(() => { ctx.close(); if (activeCtx === ctx) activeCtx = null; }, (dur + 3.5) * 1000);
     } catch { /* AudioContext may be blocked before a user gesture */ }
   }
 
@@ -208,7 +160,6 @@ export default function Page() {
 
   const fetchSheet = useCallback(async (url: string, isInitial: boolean) => {
     if (isInitial) setLoading(true); else setRefreshing(true);
-
     let text: string;
     try {
       const res = await fetch(url);
@@ -221,20 +172,11 @@ export default function Page() {
       if (isInitial) setLoading(false); else setRefreshing(false);
       return;
     }
-
     try {
       const parsed = parseSheetCsv(text);
       setSheet(parsed);
       setLastRefreshed(new Date());
       setRefreshError(null);
-      if (isInitial) {
-        setFilters({ ...DEFAULT_FILTERS, metric: parsed.metricColumns[0] });
-      } else {
-        setFilters(prev => ({
-          ...prev,
-          metric: parsed.metricColumns.includes(prev.metric) ? prev.metric : parsed.metricColumns[0],
-        }));
-      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to parse sheet.';
       if (isInitial) setError(msg); else setRefreshError(msg);
@@ -257,6 +199,12 @@ export default function Page() {
     if (csvUrlRef.current && !refreshing) fetchSheet(csvUrlRef.current, false);
   }, [fetchSheet, refreshing]);
 
+  const handleNewLeader = useCallback((name: string) => {
+    setNewLeader(name);
+    playNewLeaderSound();
+    setTimeout(() => setNewLeader(null), 10_500);
+  }, []);
+
   const exportPdf = useCallback(async () => {
     if (!exportRef.current || exporting) return;
     setExporting(true);
@@ -267,37 +215,28 @@ export default function Page() {
       ]);
       exportRef.current.classList.add('export-snapshot');
       await new Promise(r => setTimeout(r, 60));
-      const canvas = await toCanvas(exportRef.current, {
-        backgroundColor: '#080e1a',
-        pixelRatio: 2,
-      });
+      const canvas = await toCanvas(exportRef.current, { backgroundColor: '#080e1a', pixelRatio: 2 });
       exportRef.current.classList.remove('export-snapshot');
       const imgData = canvas.toDataURL('image/png');
-      const pdf     = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-      const pdfW    = pdf.internal.pageSize.getWidth();   // 297mm
-      const pdfH    = pdf.internal.pageSize.getHeight();  // 210mm
-
-      // Scale image to fill the full page width
+      const pdf  = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const pdfW = pdf.internal.pageSize.getWidth();
+      const pdfH = pdf.internal.pageSize.getHeight();
       const imgW = pdfW;
       const imgH = canvas.height * (pdfW / canvas.width);
-
-      // Slice across as many pages as needed
       let yOffset = 0;
       while (yOffset < imgH) {
         if (yOffset > 0) pdf.addPage();
         pdf.addImage(imgData, 'PNG', 0, -yOffset, imgW, imgH);
         yOffset += pdfH;
       }
-      const date = new Date().toISOString().split('T')[0];
-      pdf.save(`leaderboard-${filters.metric.replace(/\s+/g, '-')}-${date}.pdf`);
+      pdf.save(`leaderboard-${new Date().toISOString().split('T')[0]}.pdf`);
     } finally {
       setExporting(false);
     }
-  }, [exporting, filters.metric]);
+  }, [exporting]);
 
   // ── Effects ────────────────────────────────────────────────────────────────
 
-  // Auto-load last-used sheet URL from localStorage on first mount
   useEffect(() => {
     const saved = localStorage.getItem('leaderboard-sheet-url');
     if (saved) { setSavedUrl(saved); handleUrlSubmit(saved); }
@@ -325,13 +264,7 @@ export default function Page() {
     return () => document.removeEventListener('fullscreenchange', onChange);
   }, []);
 
-  // ── Presentation mode ──────────────────────────────────────────────────────
-
-  const handleNewLeader = useCallback((name: string) => {
-    setNewLeader(name);
-    playNewLeaderSound();
-    setTimeout(() => setNewLeader(null), 10500);
-  }, []);
+  // ── Presentation helpers ───────────────────────────────────────────────────
 
   const enterPresentation = useCallback(async () => {
     setIsPresenting(true);
@@ -346,53 +279,15 @@ export default function Page() {
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
-  const positions = useMemo(() => sheet ? getUniquePositions(sheet.rows) : [], [sheet]);
-  const result    = useMemo(() => {
-    if (!sheet || !filters.metric) return null;
-    return computeLeaderboard(sheet.rows, filters);
-  }, [sheet, filters]);
+  const positions    = useMemo(() => sheet ? getUniquePositions(sheet.rows) : [], [sheet]);
+  const secondsLeft  = Math.ceil((countdownPct / 100) * (REFRESH_MS / 1000));
 
-  // Keep resultRef in sync so the rank-change effect can read it without
-  // adding result to that effect's dependency array.
-  resultRef.current = result;
-
-  // ── Rank-change detection ──────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (refreshing) {
-      // Snapshot entries at the start of every refresh
-      preRefreshSnapshot.current = resultRef.current?.entries ?? [];
-    } else if (preRefreshSnapshot.current.length > 0 && resultRef.current) {
-      // Refresh just finished — compare new ranks to snapshot
-      const snapshot   = preRefreshSnapshot.current;
-      const newEntries = resultRef.current.entries;
-      preRefreshSnapshot.current = [];
-
-      const prevMap = new Map(snapshot.map(e => [e.name, e.rank]));
-      const changes = new Map<string, 'up' | 'down'>();
-      newEntries.forEach(e => {
-        const prev = prevMap.get(e.name);
-        if (prev !== undefined && prev !== e.rank) {
-          changes.set(e.name, e.rank < prev ? 'up' : 'down');
-        }
-      });
-      if (changes.size > 0) {
-        setRankChanges(changes);
-        setTimeout(() => setRankChanges(new Map()), 30000);
-      }
-
-      // Detect rank-1 handover
-      const oldTop = snapshot[0]?.name;
-      const newTop = newEntries[0]?.name;
-      if (oldTop && newTop && oldTop !== newTop) {
-        setNewLeader(newTop);
-        playNewLeaderSound();
-        setTimeout(() => setNewLeader(null), 10500);
-      }
-    }
-  }, [refreshing]);
-
-  const secondsLeft = Math.ceil((countdownPct / 100) * (REFRESH_MS / 1000));
+  const viewTitle: Record<typeof presentView, string> = {
+    table:  'Leaderboard',
+    podium: 'Podium',
+    multi:  'Multi View',
+    race:   'Team Race',
+  };
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -423,52 +318,29 @@ export default function Page() {
           </div>
         </div>
       )}
+
       <div className={`mx-auto space-y-6 ${isPresenting ? 'w-full' : 'max-w-4xl'}`}>
 
-        {/* Header */}
+        {/* Non-presenting header */}
         <div className={`flex items-center gap-5 transition-opacity duration-300 ${isPresenting ? 'opacity-0 h-0 overflow-hidden' : 'opacity-100'}`}>
           <Image src="/scotlandlogo.png" alt="Scotland" width={72} height={72} className="object-contain flex-shrink-0" priority />
           <div>
             <h1 className="font-mono text-2xl font-bold tracking-[0.25em] text-bip-accent uppercase">Scottish Rugby Leaderboard</h1>
-            <p className="mt-1 text-xs tracking-widest text-bip-muted uppercase">Paste a Google Sheet URL (set to public) — columns required: Date, Name, Position — Add aditional columns for each metric you want a leaderboard for.</p>
+            <p className="mt-1 text-xs tracking-widest text-bip-muted uppercase">Paste a Google Sheet URL (set to public) — columns required: Date, Name, Position — Add additional columns for each metric you want a leaderboard for.</p>
           </div>
         </div>
 
         {/* URL form */}
-        <section className={`bg-bip-surface rounded-lg border border-bip-border p-4 space-y-3 transition-all duration-300 ${isPresenting ? 'hidden' : ''}`}>
+        <section className={`bg-bip-surface rounded-lg border border-bip-border p-4 space-y-3 ${isPresenting ? 'hidden' : ''}`}>
           <SheetUrlForm onSubmit={handleUrlSubmit} loading={loading} initialUrl={savedUrl} />
           {loading && <StatusMessage type="info" message="Fetching sheet data…" />}
           {error   && <StatusMessage type="error" message={error} />}
         </section>
 
         {sheet && (
-          <>
-            {/* Collapsible filter panel */}
-            <section className={`bg-bip-surface rounded-lg border border-bip-border overflow-hidden transition-all duration-300 ${isPresenting ? 'hidden' : ''}`}>
-              <button
-                onClick={() => setFiltersOpen(o => !o)}
-                className="w-full flex items-center justify-between px-4 py-3 hover:bg-bip-panel/40 transition-colors duration-150"
-              >
-                <span className="text-xs font-semibold text-bip-muted uppercase tracking-widest">Filters</span>
-                <IconChevron open={filtersOpen} />
-              </button>
-              <div className={`overflow-hidden transition-all duration-300 ease-in-out ${filtersOpen ? 'max-h-96 pb-4' : 'max-h-0'}`}>
-                <div className="px-4">
-                  <LeaderboardControls
-                    metricColumns={sheet.metricColumns}
-                    positions={positions}
-                    regions={sheet.regions}
-                    filters={filters}
-                    onChange={setFilters}
-                  />
-                </div>
-              </div>
-            </section>
+          <div ref={exportRef} className="space-y-6">
 
-            {/* Export-capturable region: presenting header + leaderboard */}
-            <div ref={exportRef} className="space-y-6">
-
-            {/* Presentation-mode header: logo + title */}
+            {/* Presenting header */}
             {isPresenting && (
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-5">
@@ -476,7 +348,7 @@ export default function Page() {
                   <div>
                     <p className="text-bip-muted text-sm font-semibold uppercase tracking-widest">Scottish Rugby</p>
                     <h1 className="font-mono text-4xl font-bold tracking-[0.25em] text-bip-accent uppercase">
-                      {filters.metric} Leaderboard
+                      {viewTitle[presentView]}
                       <span className="text-lg font-semibold text-bip-muted tracking-widest ml-4 normal-case">
                         &middot; {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
                       </span>
@@ -494,12 +366,7 @@ export default function Page() {
 
               {/* Panel header */}
               <div className="flex items-center justify-between mb-3">
-                {!isPresenting && (
-                  <h2 className="text-sm font-semibold text-bip-text uppercase tracking-widest">
-                    {filters.metric} Leaderboard
-                  </h2>
-                )}
-                <div className={`flex items-center gap-3 ${isPresenting ? 'w-full justify-end' : ''}`}>
+                <div className="flex items-center gap-3">
                   {lastRefreshed && !isPresenting && (
                     <span className="text-xs text-bip-muted font-mono hidden sm:inline">
                       Updated {formatTime(lastRefreshed)}
@@ -508,59 +375,57 @@ export default function Page() {
                   <button
                     onClick={handleManualRefresh}
                     disabled={refreshing}
-                    className="text-xs text-bip-accent hover:text-bip-accent/70 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 transition-colors duration-150"
+                    className="text-xs text-bip-accent hover:text-bip-accent/70 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 transition-colors"
                   >
                     <span className={refreshing ? 'inline-block animate-spin' : 'inline-block'} aria-hidden>↻</span>
                     {refreshing ? 'Refreshing…' : 'Refresh'}
                   </button>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {/* View tab group — presenting only */}
                   {isPresenting && (
-                    <>
-                      <button
-                        onClick={() => setPresentView(v => v === 'podium' ? 'table' : 'podium')}
-                        disabled={!result || result.entries.length < 3}
-                        className={`flex items-center gap-1.5 text-xs border px-2.5 py-1.5 rounded transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed ${
-                          presentView === 'podium'
-                            ? 'border-bip-accent/60 text-bip-accent'
-                            : 'border-bip-border text-bip-muted hover:border-bip-accent/60 hover:text-bip-accent'
-                        }`}
-                      >
-                        🏆 {presentView === 'podium' ? 'Table' : 'Podium'}
-                      </button>
-                      <button
-                        onClick={() => setPresentView(v => v === 'multi' ? 'table' : 'multi')}
-                        className={`flex items-center gap-1.5 text-xs border px-2.5 py-1.5 rounded transition-colors duration-150 ${
-                          presentView === 'multi'
-                            ? 'border-bip-accent/60 text-bip-accent'
-                            : 'border-bip-border text-bip-muted hover:border-bip-accent/60 hover:text-bip-accent'
-                        }`}
-                      >
-                        ⊞ {presentView === 'multi' ? 'Table' : 'Multi'}
-                      </button>
-                      {sheet.regions.length > 0 && (
+                    <div className="flex items-center gap-0.5 bg-bip-panel rounded-lg p-0.5">
+                      {(['table', 'podium', 'multi'] as const).map(v => (
                         <button
-                          onClick={() => setPresentView(v => v === 'race' ? 'table' : 'race')}
-                          className={`flex items-center gap-1.5 text-xs border px-2.5 py-1.5 rounded transition-colors duration-150 ${
-                            presentView === 'race'
-                              ? 'border-bip-accent/60 text-bip-accent'
-                              : 'border-bip-border text-bip-muted hover:border-bip-accent/60 hover:text-bip-accent'
+                          key={v}
+                          onClick={() => setPresentView(v)}
+                          className={`px-3 py-1 text-xs rounded transition-colors capitalize ${
+                            presentView === v
+                              ? 'bg-bip-surface border border-bip-border text-bip-accent'
+                              : 'text-bip-muted hover:text-bip-text'
                           }`}
                         >
-                          ▶ {presentView === 'race' ? 'Table' : 'Race'}
+                          {v === 'table' ? 'Table' : v === 'podium' ? 'Podium' : 'Multi'}
+                        </button>
+                      ))}
+                      {sheet.regions.length > 0 && (
+                        <button
+                          onClick={() => setPresentView('race')}
+                          className={`px-3 py-1 text-xs rounded transition-colors ${
+                            presentView === 'race'
+                              ? 'bg-bip-surface border border-bip-border text-bip-accent'
+                              : 'text-bip-muted hover:text-bip-text'
+                          }`}
+                        >
+                          Race
                         </button>
                       )}
-                    </>
+                    </div>
                   )}
+
                   <button
                     onClick={exportPdf}
-                    disabled={exporting || !result}
-                    className="flex items-center gap-1.5 text-xs border border-bip-border text-bip-muted hover:border-bip-accent/60 hover:text-bip-accent px-2.5 py-1.5 rounded transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
+                    disabled={exporting}
+                    className="flex items-center gap-1.5 text-xs border border-bip-border text-bip-muted hover:border-bip-accent/60 hover:text-bip-accent px-2.5 py-1.5 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <span aria-hidden>↓</span>
                     {exporting ? 'Exporting…' : 'Export PDF'}
                   </button>
+
                   <button
                     onClick={isPresenting ? exitPresentation : enterPresentation}
-                    className="flex items-center gap-1.5 text-xs border border-bip-border text-bip-muted hover:border-bip-accent/60 hover:text-bip-accent px-2.5 py-1.5 rounded transition-colors duration-150"
+                    className="flex items-center gap-1.5 text-xs border border-bip-border text-bip-muted hover:border-bip-accent/60 hover:text-bip-accent px-2.5 py-1.5 rounded transition-colors"
                   >
                     {isPresenting ? <IconCollapse /> : <IconExpand />}
                     {isPresenting ? 'Exit' : 'Present'}
@@ -590,34 +455,15 @@ export default function Page() {
                 </div>
               )}
 
-              {isPresenting && presentView === 'race' ? (
-                <TeamRaceView sheet={sheet} />
-              ) : isPresenting && presentView === 'multi' ? (
-                <MultiView sheet={sheet} allPositions={positions} onNewLeader={handleNewLeader} />
-              ) : result ? (
-                result.entries.length === 0 && result.excludedCount === 0 ? (
-                  <StatusMessage type="warning" message="No rows match the current filters." />
-                ) : isPresenting && presentView === 'podium' ? (
-                  <PodiumView entries={result.entries} metric={filters.metric} />
-                ) : (
-                  <LeaderboardTable
-                    entries={result.entries}
-                    metric={filters.metric}
-                    excludedCount={result.excludedCount}
-                    sortDirection={filters.sortDirection}
-                    rankChanges={rankChanges}
-                    twoColumn={isPresenting && presentView === 'table'}
-                    newLeader={newLeader}
-                    regions={sheet?.regions ?? []}
-                  />
-                )
-              ) : (
-                <StatusMessage type="info" message="Select a metric to view the leaderboard." />
-              )}
+              {/* Active view */}
+              {isPresenting && presentView === 'race'  ? <TeamRaceView key={csvUrl ?? ''} sheet={sheet} /> :
+               isPresenting && presentView === 'multi' ? <MultiView    key={csvUrl ?? ''} sheet={sheet} allPositions={positions} onNewLeader={handleNewLeader} /> :
+               isPresenting && presentView === 'podium'? <PodiumView   key={csvUrl ?? ''} sheet={sheet} /> :
+               <TableView key={csvUrl ?? ''} sheet={sheet} presenting={isPresenting} refreshing={refreshing} newLeader={newLeader} onNewLeader={handleNewLeader} />
+              }
 
             </section>
-            </div>{/* /exportRef */}
-          </>
+          </div>
         )}
       </div>
     </main>

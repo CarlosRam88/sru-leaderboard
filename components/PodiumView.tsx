@@ -1,15 +1,14 @@
-import type { LeaderboardEntry } from '@/types/leaderboard';
+'use client';
 
-interface Props {
-  entries: LeaderboardEntry[];
-  metric: string;
-}
+import { useMemo, useState } from 'react';
+import { computeLeaderboard, getUniquePositions } from '@/lib/leaderboard';
+import type { ParsedSheet, SortDirection } from '@/types/leaderboard';
 
 const SLOTS = [
   {
     rankIdx:    1,
     label:      '2',
-    colPct:     '68%',   // column height as % of container — controls stepped look
+    colPct:     '68%',
     delay:      0,
     card:       'border-slate-400/40 bg-slate-400/[0.04]',
     numColor:   'text-slate-300',
@@ -47,80 +46,93 @@ const SLOTS = [
   },
 ] as const;
 
-export default function PodiumView({ entries, metric }: Props) {
-  const top3 = entries.slice(0, 3);
+const sel = 'h-7 text-xs rounded border border-bip-border bg-bip-bg text-bip-text px-2 focus:outline-none focus:ring-1 focus:ring-bip-accent';
+
+export default function PodiumView({ sheet }: { sheet: ParsedSheet }) {
+  const [metric, setMetric]                 = useState(sheet.metricColumns[0] ?? '');
+  const [direction, setDirection]           = useState<SortDirection>('highest');
+  const [positionFilter, setPositionFilter] = useState('');
+
+  const positions = useMemo(() => getUniquePositions(sheet.rows), [sheet.rows]);
+
+  const top3 = useMemo(() => computeLeaderboard(sheet.rows, {
+    metric, sortDirection: direction,
+    dateFilter: 'all', dateFrom: '', dateTo: '',
+    positionFilter, regionFilter: '',
+    mode: 'best', topN: null,
+  }).entries.slice(0, 3), [sheet.rows, metric, direction, positionFilter]);
 
   return (
-    // Fixed height so platforms always reach the bottom without overflowing.
-    // items-end aligns all columns at the bottom — shorter columns float up naturally.
-    <div className="flex items-end gap-6 px-2 h-[calc(100vh-16rem)]">
-      {SLOTS.map((slot) => {
-        const entry: LeaderboardEntry | undefined = top3[slot.rankIdx];
-        const isFirst = slot.rankIdx === 0;
+    <div className="flex flex-col" style={{ height: 'calc(100vh - 15rem)' }}>
 
-        return (
-          <div
-            key={slot.label}
-            className="flex-1 flex flex-col items-center min-w-0"
-            style={{ height: slot.colPct }}
-          >
-            {/* Player card — shrink-0 so it never compresses the platform */}
-            <div className="w-full mb-3 shrink-0">
-              {entry ? (
-                <div className={isFirst ? 'rank-1-glow rounded-xl' : ''}>
-                  <div
-                    className={`entry-animate w-full rounded-xl border px-5 py-6 text-center ${slot.card}`}
-                    style={{ animationDelay: `${slot.delay + 150}ms` }}
-                  >
-                    <div className={`text-6xl font-black font-mono tabular-nums leading-none ${slot.valColor}`}>
-                      {entry.value}
+      {/* Controls */}
+      <div className="flex items-center gap-2 mb-4 flex-shrink-0">
+        <select value={metric} onChange={e => setMetric(e.target.value)} className={sel}>
+          {sheet.metricColumns.map(col => <option key={col} value={col}>{col}</option>)}
+        </select>
+        <button
+          onClick={() => setDirection(d => d === 'highest' ? 'lowest' : 'highest')}
+          className="h-7 px-2 text-xs border border-bip-border bg-bip-bg text-bip-muted rounded hover:border-bip-accent/60 hover:text-bip-accent transition-colors"
+        >
+          {direction === 'highest' ? '↓ High' : '↑ Low'}
+        </button>
+        {positions.length > 0 && (
+          <select value={positionFilter} onChange={e => setPositionFilter(e.target.value)} className={sel}>
+            <option value="">All positions</option>
+            {positions.map(pos => <option key={pos} value={pos}>{pos}</option>)}
+          </select>
+        )}
+      </div>
+
+      {/* Podium */}
+      <div className="flex items-end gap-6 px-2 flex-1">
+        {SLOTS.map(slot => {
+          const entry = top3[slot.rankIdx];
+          const isFirst = slot.rankIdx === 0;
+
+          return (
+            <div key={slot.label} className="flex-1 flex flex-col items-center min-w-0" style={{ height: slot.colPct }}>
+
+              <div className="w-full mb-3 shrink-0">
+                {entry ? (
+                  <div className={isFirst ? 'rank-1-glow rounded-xl' : ''}>
+                    <div
+                      className={`entry-animate w-full rounded-xl border px-5 py-6 text-center ${slot.card}`}
+                      style={{ animationDelay: `${slot.delay + 150}ms` }}
+                    >
+                      <div className={`text-6xl font-black font-mono tabular-nums leading-none ${slot.valColor}`}>{entry.value}</div>
+                      <div className="mt-1 text-xs text-bip-muted uppercase tracking-widest">{metric}</div>
+                      <div className={`mt-4 text-5xl font-bold leading-tight truncate ${slot.nameColor}`}>{entry.name}</div>
+                      {entry.region && <div className="mt-2 text-xl text-bip-muted tracking-wide">{entry.region}</div>}
                     </div>
-                    <div className="mt-1 text-xs text-bip-muted uppercase tracking-widest">{metric}</div>
-                    <div className={`mt-4 text-5xl font-bold leading-tight truncate ${slot.nameColor}`}>
-                      {entry.name}
-                    </div>
-                    {entry.region && (
-                      <div className="mt-2 text-xl text-bip-muted tracking-wide">
-                        {entry.region}
-                      </div>
-                    )}
                   </div>
-                </div>
-              ) : (
-                <div className="h-48" />
-              )}
-            </div>
-
-            {/* Platform — flex-1 fills whatever remains below the card */}
-            <div
-              className="entry-animate w-full flex-1 rounded-t-lg relative overflow-hidden"
-              style={{
-                animationDelay: `${slot.delay}ms`,
-                background: slot.gradient,
-                boxShadow: `0 0 48px ${slot.glow}, inset 0 1px 0 ${slot.glossAlpha}`,
-              }}
-            >
-              {/* Top gloss strip */}
-              <div
-                className="absolute top-0 left-0 right-0 h-6 pointer-events-none"
-                style={{ background: `linear-gradient(to bottom, ${slot.glossAlpha}, transparent)` }}
-              />
-              {/* Diagonal sheen */}
-              <div className="absolute inset-0 bg-gradient-to-br from-white/[0.07] via-transparent to-black/30 pointer-events-none" />
-              {/* Rank number */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span
-                  className={`text-[9rem] font-black font-mono select-none ${slot.numColor}`}
-                  style={{ opacity: 0.55, textShadow: '0 4px 20px rgba(0,0,0,0.6)' }}
-                >
-                  {slot.label}
-                </span>
+                ) : (
+                  <div className="h-48" />
+                )}
               </div>
-            </div>
 
-          </div>
-        );
-      })}
+              <div
+                className="entry-animate w-full flex-1 rounded-t-lg relative overflow-hidden"
+                style={{
+                  animationDelay: `${slot.delay}ms`,
+                  background: slot.gradient,
+                  boxShadow: `0 0 48px ${slot.glow}, inset 0 1px 0 ${slot.glossAlpha}`,
+                }}
+              >
+                <div className="absolute top-0 left-0 right-0 h-6 pointer-events-none" style={{ background: `linear-gradient(to bottom, ${slot.glossAlpha}, transparent)` }} />
+                <div className="absolute inset-0 bg-gradient-to-br from-white/[0.07] via-transparent to-black/30 pointer-events-none" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className={`text-[9rem] font-black font-mono select-none ${slot.numColor}`} style={{ opacity: 0.55, textShadow: '0 4px 20px rgba(0,0,0,0.6)' }}>
+                    {slot.label}
+                  </span>
+                </div>
+              </div>
+
+            </div>
+          );
+        })}
+      </div>
+
     </div>
   );
 }
