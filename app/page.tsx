@@ -285,7 +285,7 @@ export default function Page() {
   const viewTitle: Record<typeof presentView, string> = {
     table:  'Leaderboard',
     podium: 'Podium',
-    multi:  'Multi View',
+    multi:  'Multi View Leaderboard',
     race:   'Team Race',
   };
 

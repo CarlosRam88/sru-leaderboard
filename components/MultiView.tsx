@@ -85,13 +85,14 @@ const defaultStyle = { border: 'border-bip-border/30', bg: 'bg-bip-surface', glo
 
 // ── Single panel ─────────────────────────────────────────────────────────────
 
-function Panel({ config, entries, metricColumns, allPositions, regions, rankChanges, canRemove, glowDelay, onUpdate, onRemove }: {
+function Panel({ config, entries, metricColumns, allPositions, regions, rankChanges, newLeader, canRemove, glowDelay, onUpdate, onRemove }: {
   config: PanelConfig;
   entries: { rank: number; name: string; region: string; value: number }[];
   metricColumns: string[];
   allPositions: string[];
   regions: string[];
   rankChanges: Map<string, 'up' | 'down'>;
+  newLeader: string | null;
   canRemove: boolean;
   glowDelay: string;
   onUpdate: (patch: Partial<PanelConfig>) => void;
@@ -141,8 +142,9 @@ function Panel({ config, entries, metricColumns, allPositions, regions, rankChan
         {entries.length === 0 ? (
           <p className="text-xs text-bip-muted text-center py-6">No entries</p>
         ) : entries.map(entry => {
-          const s      = rankStyle[entry.rank] ?? defaultStyle;
-          const change = rankChanges.get(entry.name);
+          const s           = rankStyle[entry.rank] ?? defaultStyle;
+          const change      = rankChanges.get(entry.name);
+          const isNewLeader = entry.rank === 1 && entry.name === newLeader;
           const pct = config.sortDirection === 'highest'
             ? (maxValue > 0 ? Math.min(100, (entry.value / maxValue) * 100) : 0)
             : (entry.value > 0 ? Math.min(100, (maxValue / entry.value) * 100) : 0);
@@ -150,12 +152,22 @@ function Panel({ config, entries, metricColumns, allPositions, regions, rankChan
           return (
             <div
               key={`${entry.rank}-${entry.name}`}
-              className={`relative flex items-center gap-2 rounded-md border px-3 py-1.5 ${s.border} ${s.bg} ${s.glow}`}
+              className={`relative flex items-center gap-2 rounded-md border px-3 py-1.5 ${s.border} ${s.bg} ${isNewLeader ? 'new-leader-burst' : s.glow}`}
               style={{
                 animationDelay: glowDelay,
                 ...(teamColor(entry.region, regions) && { borderLeftColor: teamColor(entry.region, regions)!, borderLeftWidth: '3px' }),
               }}
             >
+              {isNewLeader && (
+                <>
+                  <div className="shockwave-ring" />
+                  <div className="shockwave-ring" style={{ animationDelay: '0.18s' }} />
+                  <div className="shockwave-ring" style={{ animationDelay: '0.35s' }} />
+                  <span className="new-leader-badge absolute -top-2.5 right-2 px-1.5 py-0.5 bg-yellow-400 text-bip-bg text-[8px] font-bold uppercase tracking-widest rounded-full z-20">
+                    New Leader!
+                  </span>
+                </>
+              )}
               <div className="w-6 flex-shrink-0 flex items-center gap-0.5">
                 <span className={`font-bold font-mono text-sm tabular-nums leading-none ${s.number}`}>
                   {entry.rank}
@@ -223,7 +235,8 @@ export default function MultiView({ sheet, allPositions, onNewLeader }: {
   const prevTopRef     = useRef<(string | null)[]>([]);
   const prevRowsRef    = useRef(sheet.rows);
   const prevEntriesRef = useRef<{ rank: number; name: string }[][]>([]);
-  const [panelRankChanges, setPanelRankChanges] = useState<Map<string, 'up' | 'down'>[]>([]);
+  const [panelRankChanges,  setPanelRankChanges]  = useState<Map<string, 'up' | 'down'>[]>([]);
+  const [panelNewLeaders,   setPanelNewLeaders]   = useState<(string | null)[]>([]);
 
   useEffect(() => {
     const rowsChanged = sheet.rows !== prevRowsRef.current;
@@ -251,14 +264,28 @@ export default function MultiView({ sheet, allPositions, onNewLeader }: {
       entries.map(e => ({ rank: e.rank, name: e.name }))
     );
 
+    const newLeaderUpdates: { idx: number; name: string }[] = [];
     panelResults.forEach((entries, idx) => {
       const newTop  = entries[0]?.name ?? null;
       const prevTop = prevTopRef.current[idx] ?? null;
       if (rowsChanged && prevTop !== null && newTop !== null && prevTop !== newTop) {
         onNewLeader(newTop);
+        newLeaderUpdates.push({ idx, name: newTop });
       }
       prevTopRef.current[idx] = newTop;
     });
+    if (newLeaderUpdates.length > 0) {
+      setPanelNewLeaders(prev => {
+        const next = [...prev];
+        newLeaderUpdates.forEach(({ idx, name }) => { next[idx] = name; });
+        return next;
+      });
+      newLeaderUpdates.forEach(({ idx }) => {
+        setTimeout(() => {
+          setPanelNewLeaders(prev => { const next = [...prev]; next[idx] = null; return next; });
+        }, 10_500);
+      });
+    }
   }, [panelResults, sheet.rows, onNewLeader]);
 
   const gridCols = ['grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4', 'grid-cols-5', 'grid-cols-6'][panels.length - 1];
@@ -289,6 +316,7 @@ export default function MultiView({ sheet, allPositions, onNewLeader }: {
             allPositions={allPositions}
             regions={sheet.regions}
             rankChanges={panelRankChanges[idx] ?? new Map()}
+            newLeader={panelNewLeaders[idx] ?? null}
             canRemove={panels.length > 1}
             glowDelay={glowDelay}
             onUpdate={patch => updatePanel(panel.id, patch)}
