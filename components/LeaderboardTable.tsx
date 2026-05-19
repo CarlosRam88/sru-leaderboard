@@ -28,15 +28,15 @@ function computeBarPct(entry: LeaderboardEntry, entries: LeaderboardEntry[], sor
   return Math.min(100, (best / entry.value) * 100);
 }
 
-function Headers({ metric, nameWidth }: { metric: string; nameWidth: string }) {
+function Headers({ metric, nameWidth, compact = false }: { metric: string; nameWidth: string; compact?: boolean }) {
+  const label = 'text-xs font-semibold text-bip-muted uppercase ' + (compact ? 'tracking-wide' : 'tracking-widest');
   return (
-    <div className="flex items-center gap-4 px-4 pb-2.5 border-b border-bip-border">
-      <span className="w-8 flex-shrink-0 text-xs font-semibold text-bip-muted uppercase tracking-widest">#</span>
-      <span className={`${nameWidth} flex-shrink-0 text-xs font-semibold text-bip-muted uppercase tracking-widest`}>Name</span>
-      <span className="flex-1 text-xs font-semibold text-bip-muted uppercase tracking-widest">Performance</span>
-      <span className="w-16 flex-shrink-0 text-right text-xs font-semibold text-bip-muted uppercase tracking-widest">
-        {metric}
-      </span>
+    <div className={`flex items-center pb-2.5 border-b border-bip-border ${compact ? 'gap-2 px-2' : 'gap-4 px-4'}`}>
+      <span className={`w-8 flex-shrink-0 ${label}`}>#</span>
+      <span className={`${nameWidth} flex-shrink-0 ${label}`}>Name</span>
+      {!compact && <span className={`flex-1 ${label}`}>Performance</span>}
+      {compact && <span className="flex-1" />}
+      <span className={`w-14 flex-shrink-0 text-right truncate ${label}`}>{metric}</span>
     </div>
   );
 }
@@ -70,7 +70,11 @@ export default function LeaderboardTable({
           className={`relative entry-animate flex items-center gap-4 rounded-lg border px-4 py-3.5 transition-colors duration-300 ${
             isFirst
               ? `border-yellow-400/50 bg-yellow-400/[0.04] ${isNewLeader ? 'new-leader-burst' : 'rank-1-glow'}`
-              : 'border-bip-border/30 bg-bip-surface hover:bg-bip-panel/50'
+              : entry.rank === 2
+                ? 'border-slate-400/50 bg-slate-400/[0.04] rank-2-glow'
+                : entry.rank === 3
+                  ? 'border-amber-700/50 bg-amber-700/[0.04] rank-3-glow'
+                  : 'border-bip-border/30 bg-bip-surface hover:bg-bip-panel/50'
           }`}
           style={{ animationDelay: `${(startIndex + i) * 55}ms` }}
         >
@@ -142,7 +146,7 @@ export default function LeaderboardTable({
             const colSize = Math.ceil(entries.length / colCount);
             return (
               <div key={i} className="flex-1 space-y-2 min-w-0">
-                <Headers metric={metric} nameWidth={nameWidth} />
+                <Headers metric={metric} nameWidth={nameWidth} compact={colCount >= 4} />
                 <div className="space-y-2">
                   {renderRows(entries.slice(i * colSize, (i + 1) * colSize), i * colSize)}
                 </div>
