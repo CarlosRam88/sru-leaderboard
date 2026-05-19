@@ -53,8 +53,8 @@ export default function LeaderboardTable({
     );
   }
 
-  const colCount  = twoColumn ? (entries.length > 36 ? 5 : entries.length > 27 ? 4 : entries.length >= 15 ? 3 : 2) : 1;
-  const nameWidth = colCount === 5 ? 'w-32' : colCount === 4 ? 'w-48' : colCount === 3 ? 'w-72' : colCount === 2 ? 'w-80' : 'w-[21rem]';
+  const colCount  = twoColumn ? (entries.length > 50 ? 6 : entries.length > 36 ? 5 : entries.length > 27 ? 4 : entries.length >= 15 ? 3 : 2) : 1;
+  const nameWidth = colCount === 6 ? 'w-24' : colCount === 5 ? 'w-32' : colCount === 4 ? 'w-48' : colCount === 3 ? 'w-72' : colCount === 2 ? 'w-80' : 'w-[21rem]';
 
   const renderRows = (subset: LeaderboardEntry[], startIndex: number) =>
     subset.map((entry, i) => {
