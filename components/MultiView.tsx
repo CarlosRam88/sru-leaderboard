@@ -85,11 +85,12 @@ const defaultStyle = { border: 'border-bip-border/30', bg: 'bg-bip-surface', glo
 
 // ── Single panel ─────────────────────────────────────────────────────────────
 
-function Panel({ config, entries, metricColumns, allPositions, canRemove, glowDelay, onUpdate, onRemove }: {
+function Panel({ config, entries, metricColumns, allPositions, regions, canRemove, glowDelay, onUpdate, onRemove }: {
   config: PanelConfig;
   entries: { rank: number; name: string; region: string; value: number }[];
   metricColumns: string[];
   allPositions: string[];
+  regions: string[];
   canRemove: boolean;
   glowDelay: string;
   onUpdate: (patch: Partial<PanelConfig>) => void;
@@ -150,7 +151,7 @@ function Panel({ config, entries, metricColumns, allPositions, canRemove, glowDe
               className={`relative flex items-center gap-2 rounded-md border px-3 py-1.5 ${s.border} ${s.bg} ${s.glow}`}
               style={{
                 animationDelay: glowDelay,
-                ...(teamColor(entry.region, sheet.regions) && { borderLeftColor: teamColor(entry.region, sheet.regions)!, borderLeftWidth: '3px' }),
+                ...(teamColor(entry.region, regions) && { borderLeftColor: teamColor(entry.region, regions)!, borderLeftWidth: '3px' }),
               }}
             >
               <span className={`w-5 flex-shrink-0 font-bold font-mono text-sm tabular-nums leading-none ${s.number}`}>
@@ -253,6 +254,7 @@ export default function MultiView({ sheet, allPositions, onNewLeader }: {
             entries={panelResults[idx]}
             metricColumns={sheet.metricColumns}
             allPositions={allPositions}
+            regions={sheet.regions}
             canRemove={panels.length > 1}
             glowDelay={glowDelay}
             onUpdate={patch => updatePanel(panel.id, patch)}
