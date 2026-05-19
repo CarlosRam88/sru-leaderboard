@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { computeLeaderboard } from '@/lib/leaderboard';
+import { teamColor } from '@/lib/teamColors';
 import type { ParsedSheet, SortDirection } from '@/types/leaderboard';
 
 interface PanelConfig {
@@ -84,12 +85,13 @@ const defaultStyle = { border: 'border-bip-border/30', bg: 'bg-bip-surface', glo
 
 // ── Single panel ─────────────────────────────────────────────────────────────
 
-function Panel({ config, entries, metricColumns, allPositions, canRemove, onUpdate, onRemove }: {
+function Panel({ config, entries, metricColumns, allPositions, canRemove, glowDelay, onUpdate, onRemove }: {
   config: PanelConfig;
   entries: { rank: number; name: string; region: string; value: number }[];
   metricColumns: string[];
   allPositions: string[];
   canRemove: boolean;
+  glowDelay: string;
   onUpdate: (patch: Partial<PanelConfig>) => void;
   onRemove: () => void;
 }) {
@@ -146,6 +148,10 @@ function Panel({ config, entries, metricColumns, allPositions, canRemove, onUpda
             <div
               key={`${entry.rank}-${entry.name}`}
               className={`relative flex items-center gap-2 rounded-md border px-3 py-1.5 ${s.border} ${s.bg} ${s.glow}`}
+              style={{
+                animationDelay: glowDelay,
+                ...(teamColor(entry.region) && { borderLeftColor: teamColor(entry.region)!, borderLeftWidth: '3px' }),
+              }}
             >
               <span className={`w-5 flex-shrink-0 font-bold font-mono text-sm tabular-nums leading-none ${s.number}`}>
                 {entry.rank}
@@ -178,7 +184,7 @@ export default function MultiView({ sheet, allPositions, onNewLeader }: {
   const firstMetric = sheet.metricColumns[0] ?? '';
   const [panels, setPanels] = useState<PanelConfig[]>([defaultPanel(firstMetric), defaultPanel(firstMetric)]);
 
-  const addPanel    = () => setPanels(ps => ps.length < 4 ? [...ps, defaultPanel(firstMetric)] : ps);
+  const addPanel    = () => setPanels(ps => ps.length < 6 ? [...ps, defaultPanel(firstMetric)] : ps);
   const removePanel = (id: string) => setPanels(ps => ps.length > 1 ? ps.filter(p => p.id !== id) : ps);
   const updatePanel = (id: string, patch: Partial<PanelConfig>) =>
     setPanels(ps => ps.map(p => p.id === id ? { ...p, ...patch } : p));
@@ -221,11 +227,12 @@ export default function MultiView({ sheet, allPositions, onNewLeader }: {
     });
   }, [panelResults, sheet.rows, onNewLeader]);
 
-  const gridCols = ['grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4'][panels.length - 1];
+  const gridCols    = ['grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4', 'grid-cols-5', 'grid-cols-6'][panels.length - 1];
+  const glowDelay   = `${-(Date.now() % 2000)}ms`;
 
   return (
     <div className="flex flex-col gap-3" style={{ height: 'calc(100vh - 15rem)' }}>
-      {panels.length < 4 && (
+      {panels.length < 6 && (
         <div className="flex justify-end flex-shrink-0">
           <button
             onClick={addPanel}
@@ -244,6 +251,7 @@ export default function MultiView({ sheet, allPositions, onNewLeader }: {
             metricColumns={sheet.metricColumns}
             allPositions={allPositions}
             canRemove={panels.length > 1}
+            glowDelay={glowDelay}
             onUpdate={patch => updatePanel(panel.id, patch)}
             onRemove={() => removePanel(panel.id)}
           />

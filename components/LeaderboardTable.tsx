@@ -1,3 +1,4 @@
+import { teamColor } from '@/lib/teamColors';
 import type { LeaderboardEntry, SortDirection } from '@/types/leaderboard';
 
 interface Props {
@@ -76,7 +77,10 @@ export default function LeaderboardTable({
                   ? 'border-amber-700/50 bg-amber-700/[0.04] rank-3-glow'
                   : 'border-bip-border/30 bg-bip-surface hover:bg-bip-panel/50'
           }`}
-          style={{ animationDelay: `${(startIndex + i) * 55}ms` }}
+          style={{
+            animationDelay: `${(startIndex + i) * 55}ms`,
+            ...(teamColor(entry.region) && { borderLeftColor: teamColor(entry.region)!, borderLeftWidth: '3px' }),
+          }}
         >
           {/* Shockwave rings for new rank-1 */}
           {isNewLeader && (
