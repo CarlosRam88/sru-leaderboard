@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import LeaderboardControls from '@/components/LeaderboardControls';
 import LeaderboardTable from '@/components/LeaderboardTable';
+import MultiView from '@/components/MultiView';
 import PodiumView from '@/components/PodiumView';
 import SheetUrlForm from '@/components/SheetUrlForm';
 import StatusMessage from '@/components/StatusMessage';
@@ -84,8 +85,8 @@ export default function Page() {
   const [rankChanges, setRankChanges] = useState<Map<string, 'up' | 'down'>>(new Map());
   const [newLeader, setNewLeader]     = useState<string | null>(null);
 
-  const [exporting, setExporting] = useState(false);
-  const [isPodium, setIsPodium]   = useState(false);
+  const [exporting, setExporting]       = useState(false);
+  const [presentView, setPresentView]   = useState<'table' | 'podium' | 'multi'>('table');
 
   const csvUrlRef          = useRef<string | null>(null);
   const resultRef          = useRef<LeaderboardResult | null>(null);
@@ -317,13 +318,19 @@ export default function Page() {
 
   useEffect(() => {
     const onChange = () => {
-      if (!document.fullscreenElement) { setIsPresenting(false); setIsPodium(false); }
+      if (!document.fullscreenElement) { setIsPresenting(false); setPresentView('table'); }
     };
     document.addEventListener('fullscreenchange', onChange);
     return () => document.removeEventListener('fullscreenchange', onChange);
   }, []);
 
   // ── Presentation mode ──────────────────────────────────────────────────────
+
+  const handleNewLeader = useCallback((name: string) => {
+    setNewLeader(name);
+    playNewLeaderSound();
+    setTimeout(() => setNewLeader(null), 10500);
+  }, []);
 
   const enterPresentation = useCallback(async () => {
     setIsPresenting(true);
@@ -332,7 +339,7 @@ export default function Page() {
 
   const exitPresentation = useCallback(async () => {
     setIsPresenting(false);
-    setIsPodium(false);
+    setPresentView('table');
     if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
   }, []);
 
@@ -506,17 +513,29 @@ export default function Page() {
                     {refreshing ? 'Refreshing…' : 'Refresh'}
                   </button>
                   {isPresenting && (
-                    <button
-                      onClick={() => setIsPodium(p => !p)}
-                      disabled={!result || (result.entries.length < 3)}
-                      className={`flex items-center gap-1.5 text-xs border px-2.5 py-1.5 rounded transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed ${
-                        isPodium
-                          ? 'border-bip-accent/60 text-bip-accent'
-                          : 'border-bip-border text-bip-muted hover:border-bip-accent/60 hover:text-bip-accent'
-                      }`}
-                    >
-                      🏆 {isPodium ? 'Table' : 'Podium'}
-                    </button>
+                    <>
+                      <button
+                        onClick={() => setPresentView(v => v === 'podium' ? 'table' : 'podium')}
+                        disabled={!result || result.entries.length < 3}
+                        className={`flex items-center gap-1.5 text-xs border px-2.5 py-1.5 rounded transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed ${
+                          presentView === 'podium'
+                            ? 'border-bip-accent/60 text-bip-accent'
+                            : 'border-bip-border text-bip-muted hover:border-bip-accent/60 hover:text-bip-accent'
+                        }`}
+                      >
+                        🏆 {presentView === 'podium' ? 'Table' : 'Podium'}
+                      </button>
+                      <button
+                        onClick={() => setPresentView(v => v === 'multi' ? 'table' : 'multi')}
+                        className={`flex items-center gap-1.5 text-xs border px-2.5 py-1.5 rounded transition-colors duration-150 ${
+                          presentView === 'multi'
+                            ? 'border-bip-accent/60 text-bip-accent'
+                            : 'border-bip-border text-bip-muted hover:border-bip-accent/60 hover:text-bip-accent'
+                        }`}
+                      >
+                        ⊞ {presentView === 'multi' ? 'Table' : 'Multi'}
+                      </button>
+                    </>
                   )}
                   <button
                     onClick={exportPdf}
@@ -558,10 +577,12 @@ export default function Page() {
                 </div>
               )}
 
-              {result ? (
+              {isPresenting && presentView === 'multi' ? (
+                <MultiView sheet={sheet} allPositions={positions} onNewLeader={handleNewLeader} />
+              ) : result ? (
                 result.entries.length === 0 && result.excludedCount === 0 ? (
                   <StatusMessage type="warning" message="No rows match the current filters." />
-                ) : isPodium && isPresenting ? (
+                ) : isPresenting && presentView === 'podium' ? (
                   <PodiumView entries={result.entries} metric={filters.metric} />
                 ) : (
                   <LeaderboardTable
@@ -570,7 +591,7 @@ export default function Page() {
                     excludedCount={result.excludedCount}
                     sortDirection={filters.sortDirection}
                     rankChanges={rankChanges}
-                    twoColumn={isPresenting}
+                    twoColumn={isPresenting && presentView === 'table'}
                     newLeader={newLeader}
                   />
                 )
