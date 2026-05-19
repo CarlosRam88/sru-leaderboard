@@ -10,11 +10,12 @@ import type {
 interface Props {
   metricColumns: string[];
   positions: string[];
+  regions: string[];
   filters: LeaderboardFilters;
   onChange: (filters: LeaderboardFilters) => void;
 }
 
-export default function LeaderboardControls({ metricColumns, positions, filters, onChange }: Props) {
+export default function LeaderboardControls({ metricColumns, positions, regions, filters, onChange }: Props) {
   function set<K extends keyof LeaderboardFilters>(key: K, value: LeaderboardFilters[K]) {
     onChange({ ...filters, [key]: value });
   }
@@ -63,6 +64,17 @@ export default function LeaderboardControls({ metricColumns, positions, filters,
           ))}
         </select>
       </Field>
+
+      {regions.length > 0 && (
+        <Field label="Region / Team">
+          <select value={filters.regionFilter} onChange={(e) => set('regionFilter', e.target.value)} className={selectCls}>
+            <option value="">All regions</option>
+            {regions.map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+        </Field>
+      )}
 
       <Field label="Mode">
         <select value={filters.mode} onChange={(e) => set('mode', e.target.value as LeaderboardMode)} className={selectCls}>

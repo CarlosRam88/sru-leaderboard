@@ -58,6 +58,11 @@ function applyPositionFilter(rows: SheetRow[], position: string): SheetRow[] {
   return rows.filter((row) => row.position === position);
 }
 
+function applyRegionFilter(rows: SheetRow[], region: string): SheetRow[] {
+  if (!region) return rows;
+  return rows.filter((row) => row.region === region);
+}
+
 function partitionByMetric(
   rows: SheetRow[],
   metric: string
@@ -122,6 +127,7 @@ export function computeLeaderboard(
 
   let rows = applyDateFilter(allRows, filters);
   rows = applyPositionFilter(rows, filters.positionFilter);
+  rows = applyRegionFilter(rows, filters.regionFilter);
 
   const { valid, excluded } = partitionByMetric(rows, filters.metric);
 
@@ -139,8 +145,7 @@ export function computeLeaderboard(
   const entries: LeaderboardEntry[] = sliced.map((row, i) => ({
     rank: i + 1,
     name: row.name,
-    position: row.position,
-    date: row.date,
+    region: row.region,
     value: Number(row[filters.metric]),
   }));
 

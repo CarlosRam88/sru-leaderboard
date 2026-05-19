@@ -2,6 +2,7 @@ export interface SheetRow {
   date: string;
   name: string;
   position: string;
+  region: string;
   [key: string]: string;
 }
 
@@ -9,6 +10,7 @@ export interface ParsedSheet {
   headers: string[];
   rows: SheetRow[];
   metricColumns: string[];
+  regions: string[];
 }
 
 export type SortDirection = 'highest' | 'lowest';
@@ -22,6 +24,7 @@ export interface LeaderboardFilters {
   dateFrom: string;
   dateTo: string;
   positionFilter: string;
+  regionFilter: string;
   mode: LeaderboardMode;
   topN: number | null;
 }
@@ -29,8 +32,7 @@ export interface LeaderboardFilters {
 export interface LeaderboardEntry {
   rank: number;
   name: string;
-  position: string;
-  date: string;
+  region: string;
   value: number;
 }
 

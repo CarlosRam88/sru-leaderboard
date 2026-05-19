@@ -20,6 +20,7 @@ const DEFAULT_FILTERS: LeaderboardFilters = {
   dateFrom: '',
   dateTo: '',
   positionFilter: '',
+  regionFilter: '',
   mode: 'best',
   topN: null,
 };
@@ -448,6 +449,7 @@ export default function Page() {
                   <LeaderboardControls
                     metricColumns={sheet.metricColumns}
                     positions={positions}
+                    regions={sheet.regions}
                     filters={filters}
                     onChange={setFilters}
                   />

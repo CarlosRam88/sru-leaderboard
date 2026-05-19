@@ -66,7 +66,7 @@ export default function LeaderboardTable({
 
       return (
         <div
-          key={`${entry.rank}-${entry.name}-${entry.date}-${entry.value}`}
+          key={`${entry.rank}-${entry.name}-${entry.value}`}
           className={`relative entry-animate flex items-center gap-4 rounded-lg border px-4 py-3.5 transition-colors duration-300 ${
             isFirst
               ? `border-yellow-400/50 bg-yellow-400/[0.04] ${isNewLeader ? 'new-leader-burst' : 'rank-1-glow'}`
@@ -106,12 +106,12 @@ export default function LeaderboardTable({
             )}
           </div>
 
-          {/* Name + position/date */}
+          {/* Name + region */}
           <div className={`${nameWidth} flex-shrink-0 min-w-0`}>
             <div className={`font-semibold truncate ${meta.name}`}>{entry.name}</div>
-            <div className="text-xs text-bip-muted mt-0.5 truncate">
-              {entry.position} &middot; {entry.date}
-            </div>
+            {entry.region && (
+              <div className="text-xs text-bip-muted mt-0.5 truncate">{entry.region}</div>
+            )}
           </div>
 
           {/* Bar track */}

@@ -2,6 +2,7 @@ import Papa from 'papaparse';
 import type { ParsedSheet, SheetRow } from '@/types/leaderboard';
 
 const MANDATORY = ['date', 'name', 'position'] as const;
+const REGION_ALIASES = ['region', 'team'];
 
 export async function fetchAndParseSheet(csvUrl: string): Promise<ParsedSheet> {
   let response: Response;
@@ -50,24 +51,33 @@ export function parseSheetCsv(csv: string): ParsedSheet {
     }
   }
 
-  const metricColumns = headers.slice(MANDATORY.length);
+  const col3 = (headers[MANDATORY.length] ?? '').toLowerCase().trim();
+  const hasRegion = REGION_ALIASES.includes(col3);
+  const metricStart = MANDATORY.length + (hasRegion ? 1 : 0);
+
+  const metricColumns = headers.slice(metricStart);
   if (metricColumns.length === 0) {
-    throw new Error('No metric columns found. Add at least one column after date, name, and position.');
+    throw new Error('No metric columns found. Add at least one column after date, name, position (and optionally region/team).');
   }
 
   const rows: SheetRow[] = dataRows
     .filter((row) => row.some((cell) => cell.trim() !== ''))
     .map((row) => {
       const obj: SheetRow = {
-        date: (row[0] ?? '').trim(),
-        name: (row[1] ?? '').trim(),
+        date:     (row[0] ?? '').trim(),
+        name:     (row[1] ?? '').trim(),
         position: (row[2] ?? '').trim(),
+        region:   hasRegion ? (row[MANDATORY.length] ?? '').trim() : '',
       };
       metricColumns.forEach((col, i) => {
-        obj[col] = (row[MANDATORY.length + i] ?? '').trim();
+        obj[col] = (row[metricStart + i] ?? '').trim();
       });
       return obj;
     });
 
-  return { headers, rows, metricColumns };
+  const regions = hasRegion
+    ? Array.from(new Set(rows.map((r) => r.region).filter(Boolean))).sort()
+    : [];
+
+  return { headers, rows, metricColumns, regions };
 }
