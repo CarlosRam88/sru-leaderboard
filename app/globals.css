@@ -140,13 +140,13 @@ body {
 }
 
 .rank-1-glow {
-  animation: entry-fade 0.35s ease-out both, gold-glow 2s ease-in-out infinite;
+  animation: entry-fade 0.35s ease-out both, gold-glow 3s ease-in-out infinite;
 }
 
 .rank-2-glow {
-  animation: entry-fade 0.35s ease-out both, silver-glow 2s ease-in-out infinite;
+  animation: entry-fade 0.35s ease-out both, silver-glow 3s ease-in-out infinite;
 }
 
 .rank-3-glow {
-  animation: entry-fade 0.35s ease-out both, bronze-glow 2s ease-in-out infinite;
+  animation: entry-fade 0.35s ease-out both, bronze-glow 3s ease-in-out infinite;
 }

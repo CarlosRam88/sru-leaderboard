@@ -227,8 +227,11 @@ export default function MultiView({ sheet, allPositions, onNewLeader }: {
     });
   }, [panelResults, sheet.rows, onNewLeader]);
 
-  const gridCols    = ['grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4', 'grid-cols-5', 'grid-cols-6'][panels.length - 1];
-  const glowDelay   = `${-(Date.now() % 2000)}ms`;
+  const gridCols = ['grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4', 'grid-cols-5', 'grid-cols-6'][panels.length - 1];
+  const [glowDelay] = useState(() => {
+    const t = (typeof document !== 'undefined' ? (document.timeline?.currentTime as number | null) ?? 0 : 0);
+    return `${-(t % 3000)}ms`;
+  });
 
   return (
     <div className="flex flex-col gap-3" style={{ height: 'calc(100vh - 15rem)' }}>
