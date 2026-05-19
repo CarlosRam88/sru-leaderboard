@@ -7,6 +7,7 @@ import LeaderboardControls from '@/components/LeaderboardControls';
 import LeaderboardTable from '@/components/LeaderboardTable';
 import MultiView from '@/components/MultiView';
 import PodiumView from '@/components/PodiumView';
+import TeamRaceView from '@/components/TeamRaceView';
 import SheetUrlForm from '@/components/SheetUrlForm';
 import StatusMessage from '@/components/StatusMessage';
 import { parseSheetCsv } from '@/lib/csv';
@@ -86,7 +87,7 @@ export default function Page() {
   const [newLeader, setNewLeader]     = useState<string | null>(null);
 
   const [exporting, setExporting]       = useState(false);
-  const [presentView, setPresentView]   = useState<'table' | 'podium' | 'multi'>('table');
+  const [presentView, setPresentView]   = useState<'table' | 'podium' | 'multi' | 'race'>('table');
 
   const csvUrlRef          = useRef<string | null>(null);
   const resultRef          = useRef<LeaderboardResult | null>(null);
@@ -535,6 +536,18 @@ export default function Page() {
                       >
                         ⊞ {presentView === 'multi' ? 'Table' : 'Multi'}
                       </button>
+                      {sheet.regions.length > 0 && (
+                        <button
+                          onClick={() => setPresentView(v => v === 'race' ? 'table' : 'race')}
+                          className={`flex items-center gap-1.5 text-xs border px-2.5 py-1.5 rounded transition-colors duration-150 ${
+                            presentView === 'race'
+                              ? 'border-bip-accent/60 text-bip-accent'
+                              : 'border-bip-border text-bip-muted hover:border-bip-accent/60 hover:text-bip-accent'
+                          }`}
+                        >
+                          ▶ {presentView === 'race' ? 'Table' : 'Race'}
+                        </button>
+                      )}
                     </>
                   )}
                   <button
@@ -577,7 +590,9 @@ export default function Page() {
                 </div>
               )}
 
-              {isPresenting && presentView === 'multi' ? (
+              {isPresenting && presentView === 'race' ? (
+                <TeamRaceView sheet={sheet} />
+              ) : isPresenting && presentView === 'multi' ? (
                 <MultiView sheet={sheet} allPositions={positions} onNewLeader={handleNewLeader} />
               ) : result ? (
                 result.entries.length === 0 && result.excludedCount === 0 ? (
