@@ -85,12 +85,13 @@ const defaultStyle = { border: 'border-bip-border/30', bg: 'bg-bip-surface', glo
 
 // ── Single panel ─────────────────────────────────────────────────────────────
 
-function Panel({ config, entries, metricColumns, allPositions, regions, canRemove, glowDelay, onUpdate, onRemove }: {
+function Panel({ config, entries, metricColumns, allPositions, regions, rankChanges, canRemove, glowDelay, onUpdate, onRemove }: {
   config: PanelConfig;
   entries: { rank: number; name: string; region: string; value: number }[];
   metricColumns: string[];
   allPositions: string[];
   regions: string[];
+  rankChanges: Map<string, 'up' | 'down'>;
   canRemove: boolean;
   glowDelay: string;
   onUpdate: (patch: Partial<PanelConfig>) => void;
@@ -140,7 +141,8 @@ function Panel({ config, entries, metricColumns, allPositions, regions, canRemov
         {entries.length === 0 ? (
           <p className="text-xs text-bip-muted text-center py-6">No entries</p>
         ) : entries.map(entry => {
-          const s = rankStyle[entry.rank] ?? defaultStyle;
+          const s      = rankStyle[entry.rank] ?? defaultStyle;
+          const change = rankChanges.get(entry.name);
           const pct = config.sortDirection === 'highest'
             ? (maxValue > 0 ? Math.min(100, (entry.value / maxValue) * 100) : 0)
             : (entry.value > 0 ? Math.min(100, (maxValue / entry.value) * 100) : 0);
@@ -154,9 +156,16 @@ function Panel({ config, entries, metricColumns, allPositions, regions, canRemov
                 ...(teamColor(entry.region, regions) && { borderLeftColor: teamColor(entry.region, regions)!, borderLeftWidth: '3px' }),
               }}
             >
-              <span className={`w-5 flex-shrink-0 font-bold font-mono text-sm tabular-nums leading-none ${s.number}`}>
-                {entry.rank}
-              </span>
+              <div className="w-6 flex-shrink-0 flex items-center gap-0.5">
+                <span className={`font-bold font-mono text-sm tabular-nums leading-none ${s.number}`}>
+                  {entry.rank}
+                </span>
+                {change && (
+                  <span className={`text-[9px] font-bold leading-none ${change === 'up' ? 'text-green-400' : 'text-red-400'}`}>
+                    {change === 'up' ? '↑' : '↓'}
+                  </span>
+                )}
+              </div>
               <div className="flex-1 min-w-0">
                 <div className={`text-sm font-semibold truncate ${s.name}`}>{entry.name}</div>
                 {entry.region && <div className="text-[10px] text-bip-muted truncate">{entry.region}</div>}
@@ -211,12 +220,36 @@ export default function MultiView({ sheet, allPositions, onNewLeader }: {
   // prevTopRef tracks the last known leader per panel slot.
   // prevRowsRef lets us distinguish a data refresh from a filter change —
   // we only fire on data changes, not when the user tweaks panel controls.
-  const prevTopRef  = useRef<(string | null)[]>([]);
-  const prevRowsRef = useRef(sheet.rows);
+  const prevTopRef     = useRef<(string | null)[]>([]);
+  const prevRowsRef    = useRef(sheet.rows);
+  const prevEntriesRef = useRef<{ rank: number; name: string }[][]>([]);
+  const [panelRankChanges, setPanelRankChanges] = useState<Map<string, 'up' | 'down'>[]>([]);
 
   useEffect(() => {
     const rowsChanged = sheet.rows !== prevRowsRef.current;
     prevRowsRef.current = sheet.rows;
+
+    if (rowsChanged && prevEntriesRef.current.length > 0) {
+      const allChanges = panelResults.map((entries, idx) => {
+        const prev    = prevEntriesRef.current[idx] ?? [];
+        const prevMap = new Map(prev.map(e => [e.name, e.rank]));
+        const changes = new Map<string, 'up' | 'down'>();
+        entries.forEach(e => {
+          const prevRank = prevMap.get(e.name);
+          if (prevRank !== undefined && prevRank !== e.rank)
+            changes.set(e.name, e.rank < prevRank ? 'up' : 'down');
+        });
+        return changes;
+      });
+      if (allChanges.some(m => m.size > 0)) {
+        setPanelRankChanges(allChanges);
+        setTimeout(() => setPanelRankChanges([]), 30_000);
+      }
+    }
+
+    prevEntriesRef.current = panelResults.map(entries =>
+      entries.map(e => ({ rank: e.rank, name: e.name }))
+    );
 
     panelResults.forEach((entries, idx) => {
       const newTop  = entries[0]?.name ?? null;
@@ -255,6 +288,7 @@ export default function MultiView({ sheet, allPositions, onNewLeader }: {
             metricColumns={sheet.metricColumns}
             allPositions={allPositions}
             regions={sheet.regions}
+            rankChanges={panelRankChanges[idx] ?? new Map()}
             canRemove={panels.length > 1}
             glowDelay={glowDelay}
             onUpdate={patch => updatePanel(panel.id, patch)}
