@@ -53,10 +53,10 @@ export default function LeaderboardTable({
     );
   }
 
-  const colCount  = twoColumn ? (entries.length > 27 ? 4 : entries.length >= 15 ? 3 : 2) : 1;
-  const nameWidth = colCount === 4 ? 'w-48' : colCount === 3 ? 'w-72' : colCount === 2 ? 'w-80' : 'w-[21rem]';
+  const colCount  = twoColumn ? (entries.length > 36 ? 5 : entries.length > 27 ? 4 : entries.length >= 15 ? 3 : 2) : 1;
+  const nameWidth = colCount === 5 ? 'w-32' : colCount === 4 ? 'w-48' : colCount === 3 ? 'w-72' : colCount === 2 ? 'w-80' : 'w-[21rem]';
 
-  const renderRows = (subset: LeaderboardEntry[], startIndex: number, step = 1) =>
+  const renderRows = (subset: LeaderboardEntry[], startIndex: number) =>
     subset.map((entry, i) => {
       const meta        = rankMeta[entry.rank] ?? defaultMeta;
       const pct         = computeBarPct(entry, entries, sortDirection);
@@ -72,7 +72,7 @@ export default function LeaderboardTable({
               ? `border-yellow-400/50 bg-yellow-400/[0.04] ${isNewLeader ? 'new-leader-burst' : 'rank-1-glow'}`
               : 'border-bip-border/30 bg-bip-surface hover:bg-bip-panel/50'
           }`}
-          style={{ animationDelay: `${(startIndex + i * step) * 55}ms` }}
+          style={{ animationDelay: `${(startIndex + i) * 55}ms` }}
         >
           {/* Shockwave rings for new rank-1 */}
           {isNewLeader && (
@@ -137,15 +137,18 @@ export default function LeaderboardTable({
       )}
 
       {colCount > 1 ? (
-        <div className={`flex ${colCount === 4 ? 'gap-3' : colCount === 3 ? 'gap-4' : 'gap-6'}`}>
-          {Array.from({ length: colCount }, (_, colIndex) => (
-            <div key={colIndex} className="flex-1 space-y-2 min-w-0">
-              <Headers metric={metric} nameWidth={nameWidth} />
-              <div className="space-y-2">
-                {renderRows(entries.filter((_, idx) => idx % colCount === colIndex), colIndex, colCount)}
+        <div className={`flex ${colCount >= 4 ? 'gap-2' : colCount === 3 ? 'gap-4' : 'gap-6'}`}>
+          {Array.from({ length: colCount }, (_, i) => {
+            const colSize = Math.ceil(entries.length / colCount);
+            return (
+              <div key={i} className="flex-1 space-y-2 min-w-0">
+                <Headers metric={metric} nameWidth={nameWidth} />
+                <div className="space-y-2">
+                  {renderRows(entries.slice(i * colSize, (i + 1) * colSize), i * colSize)}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="space-y-2">
