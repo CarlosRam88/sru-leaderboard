@@ -53,8 +53,8 @@ export default function LeaderboardTable({
     );
   }
 
-  const colCount  = twoColumn ? (entries.length >= 15 ? 3 : 2) : 1;
-  const nameWidth = colCount === 3 ? 'w-72' : colCount === 2 ? 'w-80' : 'w-[21rem]';
+  const colCount  = twoColumn ? (entries.length > 27 ? 4 : entries.length >= 15 ? 3 : 2) : 1;
+  const nameWidth = colCount === 4 ? 'w-48' : colCount === 3 ? 'w-72' : colCount === 2 ? 'w-80' : 'w-[21rem]';
 
   const renderRows = (subset: LeaderboardEntry[], startIndex: number) =>
     subset.map((entry, i) => {
@@ -139,7 +139,7 @@ export default function LeaderboardTable({
       )}
 
       {colCount > 1 ? (
-        <div className={`flex ${colCount === 3 ? 'gap-4' : 'gap-6'}`}>
+        <div className={`flex ${colCount === 4 ? 'gap-3' : colCount === 3 ? 'gap-4' : 'gap-6'}`}>
           {Array.from({ length: colCount }, (_, i) => (
             <div key={i} className="flex-1 space-y-2 min-w-0">
               <Headers metric={metric} nameWidth={nameWidth} />
