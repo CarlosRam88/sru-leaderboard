@@ -272,9 +272,9 @@ export default function Page() {
       });
       exportRef.current.classList.remove('export-snapshot');
       const imgData = canvas.toDataURL('image/png');
-      const pdf     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const pdfW    = pdf.internal.pageSize.getWidth();   // 210mm
-      const pdfH    = pdf.internal.pageSize.getHeight();  // 297mm
+      const pdf     = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const pdfW    = pdf.internal.pageSize.getWidth();   // 297mm
+      const pdfH    = pdf.internal.pageSize.getHeight();  // 210mm
 
       // Scale image to fill the full page width
       const imgW = pdfW;
